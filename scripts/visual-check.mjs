@@ -55,14 +55,23 @@ for (const device of devices) {
   await page.screenshot({ path: `${out}/${device.name}-5-plot.png`, fullPage: true });
   await step("切換英文介面", async () => {
     await page.locator(".menu summary", { hasText: "視窗" }).click();
-    await page.getByRole("button", { name: /介面語言 Language：English/ }).click();
+    await page.getByRole("button", { name: /Language：English/ }).click();
     await page.locator(".solve-button", { hasText: "Solve" }).waitFor();
     await page.locator(".menu summary", { hasText: "File" }).waitFor();
     const leftover = await page.locator(".menu-bar, .toolbar, .result-tabs, .status-bar").evaluateAll(nodes => nodes.map(node => node.textContent).join(" ").match(/[\u4e00-\u9fff]+/g));
-    if (leftover && leftover.some(text => text !== "繁體中文")) throw new Error("英文介面仍有中文：" + leftover.join("、"));
+    if (leftover && leftover.some(text => !["繁體中文", "简体中文", "日本語"].includes(text))) throw new Error("英文介面仍有中文：" + leftover.join("、"));
     if (await page.evaluate(() => document.documentElement.lang) !== "en") throw new Error("html lang 沒有改成 en");
   });
   await page.screenshot({ path: `${out}/${device.name}-6-english.png`, fullPage: true });
+  await step("切換其他語言", async () => {
+    for (const [code, solve] of [["ja", "求解"], ["ko", "해석"], ["es", "Resolver"], ["pt-BR", "Resolver"], ["zh-CN", "求解"]]) {
+      await page.locator(".language-picker select").selectOption(code);
+      if (await page.evaluate(() => document.documentElement.lang) !== code) throw new Error("html lang 沒有改成 " + code);
+      const text = await page.locator(".solve-button").textContent();
+      if (!text.includes(solve)) throw new Error(`${code} 的求解按鈕是「${text}」`);
+    }
+  });
+  await page.screenshot({ path: `${out}/${device.name}-7-zh-CN.png`, fullPage: true });
   await step("沒有水平捲動", async () => {
     const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
     if (overflow > 1) throw new Error(`頁面比視窗寬 ${overflow}px`);

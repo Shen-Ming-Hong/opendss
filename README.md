@@ -4,7 +4,7 @@
 
 保留 OpenDSS 原生功能表與腳本工作流程的網頁介面，使用 EPRI OpenDSS（官方 C++ 版 VersionC）的 WASM 移植，在 Cloudflare Workers 執行計算。網站公開提供使用，無須登入。
 
-A web workbench that keeps the native OpenDSS menus and script workflow, running a WASM port of EPRI OpenDSS (the official C++ VersionC) on Cloudflare Workers. Free to use, no sign-in. The interface is available in Traditional Chinese and English.
+A web workbench that keeps the native OpenDSS menus and script workflow, running a WASM port of EPRI OpenDSS (the official C++ VersionC) on Cloudflare Workers. Free to use, no sign-in. The interface is available in seven languages.
 
 ## 使用
 
@@ -20,13 +20,13 @@ A web workbench that keeps the native OpenDSS menus and script workflow, running
 
 ## 介面語言
 
-目前支援繁體中文與英文。預設依瀏覽器語言（中文系統顯示繁中，其他顯示英文），可在標題列右上角切換，選擇會記在瀏覽器。中文介面的專業名詞旁會補英文（例如「匯流排電壓 Bus Voltages」）；OpenDSS 指令、元件名稱與報表內容維持英文。
+目前支援 7 種語言：繁體中文、简体中文、English、日本語、한국어、Español、Português (Brasil)。預設依瀏覽器語言（台灣、香港與繁體中文設定顯示繁中，其他中文顯示简体中文，沒有對應語言時顯示英文），可在標題列右上角切換，選擇會記在瀏覽器。非英文介面的專業名詞旁會補英文（例如「匯流排電壓 Bus Voltages」）；OpenDSS 指令、元件名稱與報表內容維持英文。
 
-文字字典在 [lib/i18n.ts](lib/i18n.ts)：程式裡寫繁中原文並包 `t()`，`english` 字典以繁中原文為鍵提供英文，伺服器錯誤訊息也在這裡翻譯。新增語言時在 `languages` 加一項並提供對應字典。
+文字字典在 [lib/i18n.ts](lib/i18n.ts) 與 [lib/locales/](lib/locales/)：程式裡寫繁中原文並包 `t()`，各語言字典以繁中原文為鍵，伺服器錯誤訊息也在這裡翻譯。新增語言時在 `languages` 加一項、在 `lib/locales/` 加一份字典，並補上 `detectLang` 與 `legacyEncoding`。除繁中與英文外，其他語言由 Claude 翻譯、尚未經母語人士校稿，歡迎回報用詞。
 
 ## Language
 
-The interface supports Traditional Chinese and English. It follows the browser language by default and can be switched from the top-right of the title bar; the choice is remembered in the browser. OpenDSS commands, element names and report contents stay in English. Translations live in [lib/i18n.ts](lib/i18n.ts).
+The interface supports Traditional Chinese, Simplified Chinese, English, Japanese, Korean, Spanish and Brazilian Portuguese. It follows the browser language by default and can be switched from the top-right of the title bar; the choice is remembered in the browser. OpenDSS commands, element names and report contents stay in English. Translations live in [lib/i18n.ts](lib/i18n.ts) and [lib/locales/](lib/locales/); languages other than Traditional Chinese and English were machine-translated by Claude and have not been reviewed by native speakers.
 
 ## 本機開發
 
@@ -36,6 +36,7 @@ npm run dev -- --host 127.0.0.1
 npx tsc --noEmit
 python scripts/check-engine.py   # 需先啟動 dev
 node engine/port/test/run.mjs    # 直接驗證 WASM：電源 500.21 kW、負載端故障 22,902.3 A
+npx tsx scripts/check-i18n.ts     # 各語言字典完整性
 node scripts/visual-check.mjs    # 需先啟動 dev：桌機／筆電／平板／手機互動測試與截圖（含繪圖與切換英文）
 npm run build
 ```

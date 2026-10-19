@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Activity, ArrowDownToLine, Braces, Check, CircleHelp, Cloud, Code2, Download, FilePlus2, FileText, FolderOpen, Gauge, Globe, Info, Loader2, Maximize2, Network, PanelRightClose, Play, Save, Search, Settings2, Terminal, X, Zap } from 'lucide-react';
 import { example, exampleEn, type ModelFile, type Result } from '../lib/model';
-import { english, languages, legacyEncoding, translate, type Lang } from '../lib/i18n';
+import { detectLang, english, fullWidth, languages, legacyEncoding, translate, type Lang } from '../lib/i18n';
 import { CircuitPlot, CurvePlot, ProfilePlot } from './plots';
 
 type Tab = 'summary' | 'voltage' | 'current' | 'fault' | 'plot' | 'reports';
@@ -11,7 +11,7 @@ type Log = { time: string; message: string; kind: string };
 type PlotView = 'voltage' | 'circuit' | 'profile' | 'curve';
 const tabs: [Tab,string][] = [['summary','電路摘要'],['voltage','匯流排電壓'],['current','元件電流'],['fault','故障電流'],['plot','繪圖'],['reports','文字報表']];
 const initialFiles = [{name:'Demo_Feeder.dss',content:example}];
-const exampleFiles = (lang:Lang) => lang==='en'?[{name:'Demo_Feeder.dss',content:exampleEn}]:initialFiles;
+const exampleFiles = (lang:Lang) => lang==='zh-TW'||lang==='zh-CN'?initialFiles:[{name:'Demo_Feeder.dss',content:exampleEn}];
 function download(name:string,content:string,mime='text/plain;charset=utf-8') {
   const url=URL.createObjectURL(new Blob([content],{type:mime}));
   const anchor=document.createElement('a'); anchor.href=url; anchor.download=name; anchor.click();
@@ -29,10 +29,11 @@ export default function Workbench() {
   const [lang,setLang]=useState<Lang>('zh-TW');
   const t=(text:string,...args:(string|number)[])=>translate(lang,text,...args);
   // 專業名詞在中文介面旁補英文。
-  const term=(text:string)=>lang==='en'?t(text):<>{text}{english[text]&&<small className="term-en">{english[text]}</small>}</>;
+  const term=(text:string)=>lang==='en'?t(text):<>{t(text)}{english[text]&&<small className="term-en">{english[text]}</small>}</>;
   const fmt=(value:number|undefined,digits=3)=>Number.isFinite(value)?value!.toLocaleString(lang,{minimumFractionDigits:digits,maximumFractionDigits:digits}):'—';
   function chooseLang(next:Lang){setLang(next);try{localStorage.setItem('opendss-lang',next);}catch{}}
-  const paren=(text:string,en:string)=>lang==='en'?text+' ('+en+')':text+'（'+en+'）';
+  const paren=(text:string,en:string)=>fullWidth(lang)?text+'（'+en+'）':text+' ('+en+')';
+  const word=languages.find(item=>item.code===lang)!.word;
   const [commands,setCommands]=useState('');
   const [input,setInput]=useState('');
   const [mode,setMode]=useState('snapshot');
@@ -60,7 +61,7 @@ export default function Workbench() {
   revision.current=JSON.stringify({files,entry,commands,mode});
   function log(message:string,kind='info') {setLogs(prev=>[...prev.slice(-99),{time:new Date().toLocaleTimeString(lang,{hour12:false}),message,kind}]);}
   useEffect(()=>{
-    let language:Lang=navigator.languages?.some(item=>/^zh/i.test(item))||/^zh/i.test(navigator.language)?'zh-TW':'en';
+    let language:Lang=detectLang(navigator.languages?.length?navigator.languages:[navigator.language]);
     try{const stored=localStorage.getItem('opendss-lang');if(languages.some(item=>item.code===stored))language=stored as Lang;}catch{}
     setLang(language);
     try {
@@ -157,7 +158,7 @@ export default function Workbench() {
     [t('視覺化'),'Visualize',[[t('目前元件的電流與功率'),()=>show('current')]]],
     [t('繪圖'),'Plot',[[t('匯流排電壓圖'),()=>plot('voltage')],[t('電路圖（Plot Circuit）'),()=>plot('circuit')],[t('電壓剖面（Plot Profile）'),()=>plot('profile')],[t('曲線圖（Plot Monitor）'),()=>plot('curve')]]],
     [t('重設'),'Reset',[[t('清除計算結果'),()=>{setResult(null);log(t('已清除計算結果。'));}],[t('清除執行紀錄'),()=>setLogs([])]]],
-    [t('視窗'),'Window',[[showConsole?t('隱藏主要指令視窗'):t('顯示主要指令視窗'),()=>setShowConsole(value=>!value)],[showResults?t('隱藏結果視窗'):t('顯示結果視窗'),()=>setShowResults(value=>!value)],...languages.map(item=>[(item.code===lang?'✓ ':'')+(lang==='en'?'Language: ':'介面語言 Language：')+item.name,()=>chooseLang(item.code)] as [string,()=>void])]],
+    [t('視窗'),'Window',[[showConsole?t('隱藏主要指令視窗'):t('顯示主要指令視窗'),()=>setShowConsole(value=>!value)],[showResults?t('隱藏結果視窗'):t('顯示結果視窗'),()=>setShowResults(value=>!value)],...languages.map(item=>[(item.code===lang?'✓ ':'')+(lang==='en'?'Language: ':word+' Language'+(fullWidth(lang)?'：':': '))+item.name,()=>chooseLang(item.code)] as [string,()=>void])]],
     [t('說明'),'Help',[[t('使用說明與指令對照'),()=>help.current?.showModal()],[t('OpenDSS 官方文件 ↗'),()=>window.open('https://opendss.epri.com/','_blank','noopener,noreferrer')]]]
   ];
   const elements=result?.elements.filter(item=>elementType==='All'||item.name.toLowerCase().startsWith(elementType.toLowerCase()+'.'))??[];
@@ -168,7 +169,7 @@ export default function Workbench() {
   return <main className="workbench">
     <input ref={uploader} type="file" multiple accept=".dss,.csv,.txt,.dat,.json" hidden onChange={event=>openFiles(event.target.files)}/>
     <input ref={folder} type="file" multiple hidden {...{webkitdirectory:''}} onChange={event=>openFiles(event.target.files)}/>
-    <header className="title-bar"><div className="app-brand"><span className="app-mark"><Zap size={18} fill="currentColor"/></span><h1>OpenDSS</h1><span className="brand-divider"/><span className="edition">{t('雲端工作台')}</span><span className="version-badge">WEB PREVIEW</span></div><div className="title-meta"><span className="no-login">{t('免登入使用')}</span><label className="language-picker"><Globe size={14}/><span className="language-label">{lang==='en'?'Language':'語言 Language'}</span><select aria-label="Language / 語言" value={lang} onChange={event=>chooseLang(event.target.value as Lang)}>{languages.map(item=><option key={item.code} value={item.code}>{item.name}</option>)}</select></label><button aria-label={t('使用說明')} onClick={()=>help.current?.showModal()}><CircleHelp size={17}/></button></div></header>
+    <header className="title-bar"><div className="app-brand"><span className="app-mark"><Zap size={18} fill="currentColor"/></span><h1>OpenDSS</h1><span className="brand-divider"/><span className="edition">{t('雲端工作台')}</span><span className="version-badge">WEB PREVIEW</span></div><div className="title-meta"><span className="no-login">{t('免登入使用')}</span><label className="language-picker"><Globe size={14}/><span className="language-label">{lang==='en'?'Language':word+' Language'}</span><select aria-label="Language / 語言" value={lang} onChange={event=>chooseLang(event.target.value as Lang)}>{languages.map(item=><option key={item.code} value={item.code}>{item.name}</option>)}</select></label><button aria-label={t('使用說明')} onClick={()=>help.current?.showModal()}><CircleHelp size={17}/></button></div></header>
     <nav className="menu-bar" aria-label={t('主要功能表')}>{menus.map(([name,en,items])=><details className="menu" key={name}><summary title={en} onClick={event=>{const current=event.currentTarget.parentElement;document.querySelectorAll('.menu[open]').forEach(node=>{if(node!==current)node.removeAttribute('open');});}}>{name}</summary><div className="menu-popup">{items.map(([label,action,disabled])=><button key={label} disabled={disabled} onClick={event=>{event.currentTarget.closest('details')?.removeAttribute('open');action();}}>{label}</button>)}</div></details>)}<span className="menu-end">{t('熟悉的指令，熟悉的工作流程')}</span></nav>
     <div className="toolbar" role="toolbar" aria-label={t('常用工具')}><div className="tool-group"><button title={t('新增模型')} aria-label={t('新增模型')} onClick={newModel}><FilePlus2/></button><button title={t('開啟檔案')} aria-label={t('開啟檔案')} onClick={()=>uploader.current?.click()}><FolderOpen/></button><button title={t('下載目前檔案（⌘/Ctrl+S）')} aria-label={t('下載目前檔案')} onClick={()=>download(active,source)}><Save/></button></div><div className="tool-group"><button className="tool-label" disabled={busy} title={t('Compile：載入並執行主檔')} aria-label={t('編譯')} onClick={()=>run('compile')}><Braces/><span>{t('編譯')}</span></button><button className="solve-button" disabled={busy} onClick={()=>run()}>{busy?<Loader2 className="spin"/>:<Play fill="currentColor"/>}<span>{busy?t('執行中'):t('求解')}</span></button></div><div className="tool-group"><button className="tool-label" aria-label={t('摘要')} onClick={()=>show('summary')}><FileText/><span>{t('摘要')}</span></button><button className="tool-label" aria-label={t('繪圖')} onClick={()=>show('plot')}><Activity/><span>{t('繪圖')}</span></button><button className="tool-label" aria-label={t('匯出')} disabled={!result||stale} onClick={exportCSV}><ArrowDownToLine/><span>{t('匯出')}</span></button></div><div className="toolbar-spacer"/><button className="tool-label console-toggle" title={t('切換主要指令視窗')} aria-label={t('切換主要指令視窗')} onClick={()=>setShowConsole(value=>!value)}><Terminal/><span>{t('指令視窗')}</span></button><span className={'cloud-status '+(connected?'online':'')} title={t(connection)}><Cloud size={15}/><span>{connected?t('雲端已連線'):t(connection)}</span><i/></span></div>
     <div className="selector-row"><div className="selector"><Network size={15}/><label htmlFor="element-type">{term('元件類型')}</label><select id="element-type" value={elementType} onChange={event=>{setElementType(event.target.value);setElement('');}}><option value="All">{t('全部元件')}</option>{[['Vsource',t('電壓源')],['Transformer',t('變壓器')],['Line',t('線路')],['Load',t('負載')],['PVSystem',t('太陽光電')],['Generator',t('發電機')]].map(([value,label])=><option key={value} value={value}>{label} · {value}</option>)}</select><select aria-label={t('選取電路元件')} value={element} onChange={event=>setElement(event.target.value)}><option value="">{result?t('選取元件…'):t('請先編譯模型')}</option>{elements.map(item=><option key={item.name}>{item.name}</option>)}</select><button disabled={!result} title={t('顯示元件資訊')} aria-label={t('顯示元件資訊')} onClick={()=>show('current')}><Info size={16}/></button></div><div className="selector analysis"><Settings2 size={15}/><label htmlFor="analysis">{term('求解模式')}</label><select id="analysis" value={mode} onChange={event=>{setMode(event.target.value);setStale(!!result);}}><option value="snapshot">{t('穩態潮流 · Snapshot')}</option><option value="faultstudy">{t('故障分析 · FaultStudy')}</option><option value="script">{t('依腳本設定 · Set Mode')}</option></select><span className="frequency">{result?.frequency??60} Hz</span></div></div>
