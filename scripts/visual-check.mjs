@@ -45,6 +45,23 @@ for (const device of devices) {
     if (await page.getByText("模型已變更").count()) throw new Error("產生報表後結果被標成過期");
   });
   await page.screenshot({ path: `${out}/${device.name}-4-report.png`, fullPage: true });
+  await step("繪圖功能表", async () => {
+    await page.locator(".menu summary", { hasText: "繪圖" }).click();
+    await page.getByRole("button", { name: "匯流排電壓圖" }).click();
+    await page.locator(".voltage-plot svg polyline").first().waitFor();
+    await page.locator(".plot-views button", { hasText: "電路圖" }).click();
+    await page.getByText(/模型沒有匯流排座標/).waitFor();
+  });
+  await page.screenshot({ path: `${out}/${device.name}-5-plot.png`, fullPage: true });
+  await step("切換英文介面", async () => {
+    await page.locator(".language-picker select").selectOption("en");
+    await page.locator(".solve-button", { hasText: "Solve" }).waitFor();
+    await page.locator(".menu summary", { hasText: "File" }).waitFor();
+    const leftover = await page.locator(".menu-bar, .toolbar, .result-tabs, .status-bar").evaluateAll(nodes => nodes.map(node => node.textContent).join(" ").match(/[\u4e00-\u9fff]+/g));
+    if (leftover && leftover.some(text => text !== "繁體中文")) throw new Error("英文介面仍有中文：" + leftover.join("、"));
+    if (await page.evaluate(() => document.documentElement.lang) !== "en") throw new Error("html lang 沒有改成 en");
+  });
+  await page.screenshot({ path: `${out}/${device.name}-6-english.png`, fullPage: true });
   await step("沒有水平捲動", async () => {
     const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
     if (overflow > 1) throw new Error(`頁面比視窗寬 ${overflow}px`);

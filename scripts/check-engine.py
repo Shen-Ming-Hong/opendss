@@ -66,6 +66,9 @@ for blocked in ('Distribute kw=100', 'Refine_BusLevels', 'Tear_Circuit', 'Export
     request(model(commands='Solve\n' + blocked), 422)
 daily = request(model(commands='Set Mode=Daily\nSolve', analysis='script'))
 assert daily['mode'] == 'Daily', daily['mode']
+plotted = request(dict(files=[dict(name='main.dss', content=source), dict(name='coords.csv', content='source,0,0\nload,1000,0\n')], entry='main.dss', commands='Buscoords coords.csv\nNew EnergyMeter.Head Element=Line.L1 Terminal=1\nSolve'))
+assert len(plotted['coords']) == 2 and plotted['profile'], (plotted['coords'], plotted['profile'][:2])
+assert not any(item['name'].startswith('__plot_') for item in plotted['reports']), plotted['reports']
 uncompiled = request(model('Clear\nNew Circuit.Unsolved BasekV=12.47\n', action='compile'))
 assert uncompiled['circuit'] == 'unsolved'
 
@@ -98,4 +101,4 @@ else:
         error = max(abs(a-b) for a,b in zip(native, wasm))
         assert error < 1e-7, error
         print('IEEE 123: voltage error', error, 'p.u.;', ieee['elapsedMS'], 'ms')
-print('PASS: anonymous page/API, snapshot, fault, reports, editor commands, save circuit, blocked commands, script mode, invalid/recovery, origin, readonly FS, state cleanup, unsolved compile')
+print('PASS: anonymous page/API, snapshot, fault, reports, editor commands, save circuit, blocked commands, script mode, plot data, invalid/recovery, origin, readonly FS, state cleanup, unsolved compile')

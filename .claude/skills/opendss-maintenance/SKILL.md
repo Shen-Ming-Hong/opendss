@@ -17,7 +17,7 @@ description: 維護 OpenDSS 繁中雲端工作台（Next/vinext 網站、OpenDSS
 ## 結構
 
 - 框架：vinext（Next.js 16 介面、Vite 8 建置）+ React 19 + Tailwind 4 + shadcn，輸出 Cloudflare Worker。Worker 名稱在 `vite.config.ts` 的 `name: "opendss"`。
-- `app/page.tsx`、`app/workbench.tsx`：工作台介面（仿原版 OpenDSS 功能表、繁中）。
+- `app/page.tsx`、`app/workbench.tsx`：工作台介面（仿原版 OpenDSS 功能表，繁中／英文，預設依瀏覽器語言，標題列可切換並記在瀏覽器）。`app/plots.tsx`：電路圖、電壓剖面、曲線圖。`lib/i18n.ts`：語言字典。
 - `app/api/engine/route.ts`：計算 API。GET 檢查引擎；POST 收模型 JSON，檢查同來源、上限 4 MB。
 - `engine/runtime.ts`：zod 驗證輸入（最多 100 檔、副檔名 dss/csv/txt/dat、安全相對路徑），每次請求建立新的 WASM 實例，只開放 `/work` 可寫。
 - `engine/wasm/`：已編譯的 `OpenDSSWasm.wasm`、`opendss.mjs`、`opendss.d.mts`。
@@ -40,16 +40,17 @@ description: 維護 OpenDSS 繁中雲端工作台（Next/vinext 網站、OpenDSS
 ## 修改流程
 
 1. 從 `main` 開分支，`npm ci`。
-2. 改程式，風格沿用既有寫法（API 與 runtime 是緊湊單行風格，UI 文字一律繁中）。
+2. 改程式，風格沿用既有寫法（API 與 runtime 是緊湊單行風格）。介面有繁體中文與英文：程式裡照舊寫繁中文字並包 `t()`，同時在 `lib/i18n.ts` 的 `english` 字典補英文（以繁中原文為鍵，含伺服器錯誤訊息）。中文介面的專業名詞用 `term()` 在旁邊補英文；OpenDSS 指令、元件名稱、報表內容不翻譯。之後要加語言就在 `languages` 加一項並給一份字典。
 3. 驗證（全部在開發環境）：
    - `npx tsc --noEmit`
    - `node engine/port/test/run.mjs`：電源應為 500.21 kW／164.77 kvar，負載端故障 22,902.3 A。加 IEEE 123 資料夾路徑可再核對（132 匯流排、237 元件、電源約 3615.24 kW）。
    - `npm run dev -- --host 127.0.0.1` 啟動後跑 `python3 scripts/check-engine.py`，要印出 PASS。有 OpenDSSDirect.py 時會再比對原生數值。
-   - **全尺寸裝置視覺互動測試（每次改完程式都要跑）**：dev 伺服器開著時執行 `node scripts/visual-check.mjs --out /tmp/visual`。它用 Playwright 在桌機 1920、筆電 1366、平板 820、手機 390 四種尺寸操作首頁連線、求解範例、從「顯示」功能表產生 Show 報表，並檢查沒有瀏覽器錯誤、沒有水平捲動、報表後結果沒被標成過期。要印出 PASS，並用 Read 實際看過截圖（至少筆電與手機的報表畫面）再回報。改了版面或新增互動時，把新流程加進這支腳本。
+   - **全尺寸裝置視覺互動測試（每次改完程式都要跑）**：dev 伺服器開著時執行 `node scripts/visual-check.mjs --out /tmp/visual`。它用 Playwright 在桌機 1920、筆電 1366、平板 820、手機 390 四種尺寸操作首頁連線、求解範例、從「顯示」功能表產生 Show 報表、開繪圖分頁、切換英文介面，並檢查沒有瀏覽器錯誤、沒有水平捲動、報表後結果沒被標成過期。要印出 PASS，並用 Read 實際看過截圖（至少筆電與手機的報表畫面）再回報。改了版面或新增互動時，把新流程加進這支腳本。
    - `npm run build` 要成功。
    - `npm run lint` 目前已有既存錯誤（workbench.tsx 的 react-hooks、runtime.ts 的 module 變數、產生的 opendss.mjs），只確認沒有新增。
-4. 開 PR，Ray 合併到 `main` 後，`.github/workflows/deploy.yml` 會自動 build 並 `wrangler deploy`。只改 `*.md` 或 `.claude/` 不會部署。
-5. 部署後確認正式站首頁 200、`/api/engine` 回 `{"ok":true}`，`engine` 欄位為 `EPRI OpenDSS-C Version 11.0.0.1 …`。
+4. 開 PR，說明寫清楚改了什麼與驗證結果。Ray 指示：合併到自動部署屬於維護流程，驗證全部通過後由 Claude 直接 squash 合併到 `main`，`.github/workflows/deploy.yml` 會自動 build 並 `wrangler deploy`。只改 `*.md` 或 `.claude/` 不會部署。
+5. 合併後確認 Deploy 這個 Action 綠燈；失敗就讀 log 修好再合併。
+6. 部署後用 curl 確認正式站 https://esperar-ai.org 首頁 200、`/api/engine` 回 `{"ok":true}`，送範例模型確認 `engine` 為 `EPRI OpenDSS-C Version 11.0.0.1 …` 且數值正確（Python urllib 會被 Cloudflare 擋成 403；workers.dev 從雲端 session 連不到）。再回報 Ray。
 
 雲端 session 的出口代理會覆寫 api.cloudflare.com 的 Authorization，`wrangler deploy` 上傳靜態檔會 401，所以不要從 session 直接部署，一律走 Action。查用量、查 Worker 狀態等唯讀 API 可以直接打。
 
