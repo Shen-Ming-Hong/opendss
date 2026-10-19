@@ -12,7 +12,7 @@ description: 維護 OpenDSS 雲端工作台（OpenDSS Cloud Workbench；Next/vin
 ## 專案在哪裡
 
 - GitHub：`Shen-Ming-Hong/opendss`（public），`main` 就是正式版。這個 repo 就是網站本體（原本 Mac 上的 `~/Documents/opendss/site/`）。
-- 正式站：Cloudflare Worker `opendss`，跑在 Ray 自己的帳號（Workers Paid，帳號 id `3bdea13c295bdd5edf2cae6f68cecea3`），網址 https://opendss.esperar-ai.org （Worker 自訂網域；Ray 指定用子網域，母網域 esperar-ai.org 不給這個網站用），備用 https://opendss.lanskyassassination.workers.dev 。
+- 正式站：Cloudflare Worker `opendss`，跑在 Ray 自己的帳號（Workers Paid；帳號 ID 存在 GitHub secret `CLOUDFLARE_ACCOUNT_ID`，不要寫進 repo），網址 https://opendss.esperar-ai.org （Worker 自訂網域；Ray 指定用子網域，母網域 esperar-ai.org 不給這個網站用）。
 - Mac 上 `~/Documents/opendss` 另有 Python 環境 `.venv`（OpenDSSDirect.py，數值比對基準）、教學手冊、`work/`（emsdk 與上游原始碼，重建引擎用）。這些不在 repo。
 - 舊的 OpenAI Sites 版本（opendss-grid-lab…chatgpt.site）已不是正式發布目標；`.openai/hosting.json` 只因 `vite.config.ts` 還會讀它而保留。
 
@@ -52,7 +52,7 @@ description: 維護 OpenDSS 雲端工作台（OpenDSS Cloud Workbench；Next/vin
    - `npm run lint` 目前已有既存錯誤（workbench.tsx 的 react-hooks、runtime.ts 的 module 變數、產生的 opendss.mjs），只確認沒有新增。
 4. 開 PR，說明寫清楚改了什麼與驗證結果。Ray 指示：合併到自動部署屬於維護流程，驗證全部通過後由 Claude 直接 squash 合併到 `main`，`.github/workflows/deploy.yml` 會自動 build 並 `wrangler deploy`。只改 `*.md` 或 `.claude/` 不會部署。
 5. 合併後確認 Deploy 這個 Action 綠燈；失敗就讀 log 修好再合併。
-6. 部署後用 curl 確認正式站 https://opendss.esperar-ai.org 首頁 200、`/api/engine` 回 `{"ok":true}`，送範例模型確認 `engine` 為 `EPRI OpenDSS-C Version 11.0.0.1 …` 且數值正確（Python urllib 會被 Cloudflare 擋成 403；workers.dev 從雲端 session 連不到；子網域要在雲端環境的 Allowed domains 加上才連得到）。再回報 Ray。
+6. 部署後用 curl 確認正式站 https://opendss.esperar-ai.org 首頁 200、`/api/engine` 回 `{"ok":true}`，送範例模型確認 `engine` 為 `EPRI OpenDSS-C Version 11.0.0.1 …` 且數值正確（Python urllib 會被 Cloudflare 擋成 403；子網域要在雲端環境的 Allowed domains 加上才連得到）。再回報 Ray。
 
 雲端 session 的出口代理會覆寫 api.cloudflare.com 的 Authorization，`wrangler deploy` 上傳靜態檔會 401，所以不要從 session 直接部署，一律走 Action。查用量、查 Worker 狀態等唯讀 API 可以直接打。
 
