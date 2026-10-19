@@ -10,7 +10,7 @@ description: 維護 OpenDSS 繁中雲端工作台（Next/vinext 網站、OpenDSS
 ## 專案在哪裡
 
 - GitHub：`Shen-Ming-Hong/opendss`（public），`main` 就是正式版。這個 repo 就是網站本體（原本 Mac 上的 `~/Documents/opendss/site/`）。
-- 正式站：Cloudflare Worker `opendss`，跑在 Ray 自己的帳號（Workers Paid，帳號 id `3bdea13c295bdd5edf2cae6f68cecea3`），網址 https://opendss.lanskyassassination.workers.dev 。
+- 正式站：Cloudflare Worker `opendss`，跑在 Ray 自己的帳號（Workers Paid，帳號 id `3bdea13c295bdd5edf2cae6f68cecea3`），網址 https://esperar-ai.org （Worker 自訂網域，2026-10-19 起），備用 https://opendss.lanskyassassination.workers.dev 。
 - Mac 上 `~/Documents/opendss` 另有 Python 環境 `.venv`（OpenDSSDirect.py，數值比對基準）、教學手冊、`work/`（emsdk 與上游原始碼，重建引擎用）。這些不在 repo。
 - 舊的 OpenAI Sites 版本（opendss-grid-lab…chatgpt.site）已不是正式發布目標；`.openai/hosting.json` 只因 `vite.config.ts` 還會讀它而保留。
 
@@ -55,4 +55,4 @@ description: 維護 OpenDSS 繁中雲端工作台（Next/vinext 網站、OpenDSS
 
 ## 網域
 
-`esperar-ai.org` 由 Cloudflare 管 DNS，目前主網域指向舊的 Sites（2 筆 A、2 筆 TXT）；`wyd.esperar-ai.org` 是其他用途，不要動。要把網域改指向 Worker `opendss` 之前先問 Ray，並先把現有記錄備份。
+`esperar-ai.org` 由 Cloudflare 管 DNS，主網域以 Workers 自訂網域綁到 Worker `opendss`（DNS 記錄由 Cloudflare 自動管理）。原本指向 Sites 的 2 筆 A 記錄已刪除，備份在 Mac 的 `private/部署紀錄/esperar-ai.org-dns-created.json`。`wyd.esperar-ai.org` 是其他用途，不要動。`www` 尚未設定。session 的 Cloudflare 權限可管 Workers，但不能讀寫 DNS，DNS 變更要請 Ray 在主控台做。
