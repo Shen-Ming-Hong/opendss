@@ -19,7 +19,7 @@ description: 維護 OpenDSS 雲端工作台（OpenDSS Cloud Workbench；Next/vin
 ## 結構
 
 - 框架：vinext（Next.js 16 介面、Vite 8 建置）+ React 19 + Tailwind 4 + shadcn，輸出 Cloudflare Worker。Worker 名稱在 `vite.config.ts` 的 `name: "opendss"`。
-- `app/page.tsx`、`app/workbench.tsx`：工作台介面（仿原版 OpenDSS 功能表，繁中／英文，預設依瀏覽器語言，標題列可切換並記在瀏覽器）。`app/plots.tsx`：電路圖、電壓剖面、曲線圖。`lib/i18n.ts`：語言字典。
+- `app/page.tsx`、`app/workbench.tsx`：工作台介面（仿原版 OpenDSS 功能表，7 種介面語言。語言跟著瀏覽器；手動選的語言只在瀏覽器語言沒變時沿用，瀏覽器語言一變就回到跟隨瀏覽器）。`app/plots.tsx`：電路圖、電壓剖面、曲線圖。`lib/i18n.ts`：語言字典。`lib/model.ts`：預設範例是公開的 IEEE 13 節點測試饋線（EPRI OpenDSS 隨附，另加饋線頭 EnergyMeter 供電壓剖面用），所有語言共用同一份；範例不可放公司、案場或特定地區的資料。
 - `app/api/engine/route.ts`：計算 API。GET 檢查引擎；POST 收模型 JSON，檢查同來源、上限 4 MB。
 - `engine/runtime.ts`：zod 驗證輸入（最多 100 檔、副檔名 dss/csv/txt/dat、安全相對路徑），每次請求建立新的 WASM 實例，只開放 `/work` 可寫。
 - `engine/wasm/`：已編譯的 `OpenDSSWasm.wasm`、`opendss.mjs`、`opendss.d.mts`。

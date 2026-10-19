@@ -61,7 +61,7 @@ export const english: Record<string, string> = {
   '雲端計算中…': 'Computing in the cloud…', '就緒': 'Ready', '電路：': 'Circuit: ', '尚無作用中電路': 'No active circuit', '雲端運算': 'Cloud computing',
   // 編輯器與指令視窗
   '模型腳本編輯器': 'Model script editor', '模型腳本': 'Model script', '放大編輯區': 'Maximize editor', '已開啟檔案': 'Open files', 'DSS 模型內容': 'DSS model content', 'DSS 腳本 · UTF-8': 'DSS script · UTF-8', '第 {0} 行，第 {1} 欄': 'Ln {0}, Col {1}',
-  '主要指令視窗': 'Main command window', '隱藏指令視窗': 'Hide command window', '額外指令': 'Extra commands', '額外 DSS 指令': 'Extra DSS commands', '額外指令可輸入於此，再按「執行指令」。例如：Edit Load.Load1 kW=1000': 'Type extra commands here, then press "Run commands". Example: Edit Load.Load1 kW=1000',
+  '主要指令視窗': 'Main command window', '隱藏指令視窗': 'Hide command window', '額外指令': 'Extra commands', '額外 DSS 指令': 'Extra DSS commands', '額外指令可輸入於此，再按「執行指令」。例如：Edit Load.671 kW=1000': 'Type extra commands here, then press "Run commands". Example: Edit Load.671 kW=1000',
   '套用於目前主腳本': 'Applied to the main script', '執行指令': 'Run commands', '執行紀錄': 'Log', '清除': 'Clear', '已準備就緒': 'Ready', '編譯模型後，執行紀錄會顯示於此。': 'The log appears here after you compile a model.',
   '輸入單行 DSS 指令': 'Enter a single DSS command', '輸入指令，例如 Summary': 'Enter a command, e.g. Summary', '送出指令': 'Send command',
   // 結果分頁
@@ -95,7 +95,7 @@ export const english: Record<string, string> = {
   '專案檔格式錯誤。': 'Invalid project file.', '開啟專案會取代此裝置的草稿。請先下載需要保留的模型。確定開啟？': 'Opening a project replaces the draft on this device. Download anything you want to keep first. Open it?', '已開啟專案。': 'Project opened.',
   '上限為 100 個檔案、合計 2 MB。': 'The limit is 100 files and 2 MB in total.', '至少需要一個 .dss 模型檔案。': 'At least one .dss model file is required.', '開啟新模型會取代此裝置的草稿。請先下載需要保留的檔案。確定開啟？': 'Opening a new model replaces the draft on this device. Download anything you want to keep first. Open it?',
   '已開啟 {0} 個檔案，主檔：{1}': 'Opened {0} files, main script: {1}', '讀取檔案失敗。': 'Could not read the files.', '已匯出匯流排電壓 CSV。': 'Bus voltages CSV exported.',
-  '建立新模型會取代此裝置的草稿，確定繼續？': 'A new model replaces the draft on this device. Continue?', '已建立新模型。': 'New model created.', '載入範例會取代此裝置的草稿，確定繼續？': 'Loading the example replaces the draft on this device. Continue?', '已載入三相配電範例。': 'Three-phase distribution example loaded.',
+  '建立新模型會取代此裝置的草稿，確定繼續？': 'A new model replaces the draft on this device. Continue?', '已建立新模型。': 'New model created.', '載入範例會取代此裝置的草稿，確定繼續？': 'Loading the example replaces the draft on this device. Continue?', '已載入 IEEE 13 節點測試饋線範例。': 'IEEE 13 Node Test Feeder example loaded.',
   '已將選取內容加入主要指令視窗，請確認後執行。': 'Selection added to the main command window. Check it, then run.', '已將 {0} 加入主要指令視窗，請按「執行指令」。': 'Added {0} to the main command window. Press "Run commands".',
   // 伺服器與引擎訊息
   '雲端引擎暫時無法載入，請稍後重試。': 'The cloud engine could not load. Please try again later.', '請從本站送出計算。': 'Please submit calculations from this site.', '請提供模型內容。': 'Please provide the model.', '上傳資料不可超過 4 MB。': 'Uploads cannot exceed 4 MB.', '引擎執行失敗，請檢查模型。': 'The engine failed, check the model.',
