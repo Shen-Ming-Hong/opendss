@@ -55,7 +55,7 @@ for (const device of devices) {
   await page.screenshot({ path: `${out}/${device.name}-5-plot.png`, fullPage: true });
   await step("切換英文介面", async () => {
     await page.locator(".menu summary", { hasText: "視窗" }).click();
-    await page.getByRole("button", { name: /介面語言 Language：English/ }).click();
+    await page.getByRole("button", { name: /Language：English/ }).click();
     await page.locator(".solve-button", { hasText: "Solve" }).waitFor();
     await page.locator(".menu summary", { hasText: "File" }).waitFor();
     const leftover = await page.locator(".menu-bar, .toolbar, .result-tabs, .status-bar").evaluateAll(nodes => nodes.map(node => node.textContent).join(" ").match(/[\u4e00-\u9fff]+/g));

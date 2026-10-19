@@ -39,15 +39,21 @@ description: 維護 OpenDSS 雲端工作台（OpenDSS Cloud Workbench；Next/vin
 - 散布引擎時必須保留 `engine/port/OPENDSS_LICENSE.txt` 與 `licenses/`。上游只能用 SourceForge `electricdss` 的 `trunk/VersionC`（有 BSD-3）；不要改回沒有授權檔的 GitHub `epri-dev/OpenDSS-C`。
 - 留意 Ray 的 Workers 額度（每月 1,000 萬請求、3,000 萬 CPU ms 內含）。
 
+## 字型與字級
+
+- 字型用系統字型堆疊（`--font-latin`、`--font-cjk`、`--font-mono`，定義在 `app/globals.css` 開頭），中日韓依 `html lang` 換各地區系統字型；不要載入網路字型。
+- 字級最小 11px（狀態列、標記），一般介面 12–13px；手機上的輸入框與下拉選單用 16px，避免 iOS 聚焦時自動放大。新增樣式不要再用 8–10px。
+
 ## 修改流程
 
 1. 從 `main` 開分支，`npm ci`。
-2. 改程式，風格沿用既有寫法（API 與 runtime 是緊湊單行風格）。介面有繁體中文與英文：程式裡照舊寫繁中文字並包 `t()`，同時在 `lib/i18n.ts` 的 `english` 字典補英文（以繁中原文為鍵，含伺服器錯誤訊息）。中文介面的專業名詞用 `term()` 在旁邊補英文；OpenDSS 指令、元件名稱、報表內容不翻譯。之後要加語言就在 `languages` 加一項並給一份字典。
+2. 改程式，風格沿用既有寫法（API 與 runtime 是緊湊單行風格）。介面有繁體中文與英文：程式裡照舊寫繁中文字並包 `t()`，同時在 `lib/i18n.ts` 的 `english` 字典與 `lib/locales/` 的每一份字典（简中、日、韓、西、葡）補上翻譯（以繁中原文為鍵，含伺服器錯誤訊息）；字典缺鍵時會顯示繁中原文。非英文介面的專業名詞用 `term()` 在旁邊補英文；OpenDSS 指令、元件名稱、報表內容不翻譯。之後要加語言就在 `languages` 加一項並給一份字典。
 3. 驗證（全部在開發環境）：
    - `npx tsc --noEmit`
    - `node engine/port/test/run.mjs`：電源應為 500.21 kW／164.77 kvar，負載端故障 22,902.3 A。加 IEEE 123 資料夾路徑可再核對（132 匯流排、237 元件、電源約 3615.24 kW）。
    - `npm run dev -- --host 127.0.0.1` 啟動後跑 `python3 scripts/check-engine.py`，要印出 PASS。有 OpenDSSDirect.py 時會再比對原生數值。
    - **全尺寸裝置視覺互動測試（每次改完程式都要跑）**：dev 伺服器開著時執行 `node scripts/visual-check.mjs --out /tmp/visual`。它用 Playwright 在桌機 1920、筆電 1366、平板 820、手機 390 四種尺寸操作首頁連線、求解範例、從「顯示」功能表產生 Show 報表、開繪圖分頁、切換英文介面，並檢查沒有瀏覽器錯誤、沒有水平捲動、報表後結果沒被標成過期。要印出 PASS，並用 Read 實際看過截圖（至少筆電與手機的報表畫面）再回報。改了版面或新增互動時，把新流程加進這支腳本。
+   - `npx tsx scripts/check-i18n.ts`：每個介面字串在每種語言字典都有翻譯、佔位符一致，要印出 PASS。
    - `npm run build` 要成功。
    - `npm run lint` 目前已有既存錯誤（workbench.tsx 的 react-hooks、runtime.ts 的 module 變數、產生的 opendss.mjs），只確認沒有新增。
 4. 開 PR，說明寫清楚改了什麼與驗證結果。Ray 指示：合併到自動部署屬於維護流程，驗證全部通過後由 Claude 直接 squash 合併到 `main`，`.github/workflows/deploy.yml` 會自動 build 並 `wrangler deploy`。只改 `*.md` 或 `.claude/` 不會部署。

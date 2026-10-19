@@ -104,7 +104,7 @@ export const english: Record<string, string> = {
   '網頁移植版不支援平行 Actor、外部系統命令與外部連線。': 'The web port does not support parallel actors, external system commands or external connections.',
   '引擎執行指令時發生內部錯誤，這個指令可能不適用於網頁移植版或目前的模型。': 'The engine hit an internal error. This command may not work in the web port or with this model.',
 };
-const dictionaries: Partial<Record<Lang, Record<string, string>>> = { en: english, 'zh-CN': zhCN, ja, ko, es, 'pt-BR': ptBR };
+export const dictionaries: Partial<Record<Lang, Record<string, string>>> = { en: english, 'zh-CN': zhCN, ja, ko, es, 'pt-BR': ptBR };
 const prefixes: Partial<Record<Lang, string>> = { en: 'Invalid model data: ', 'zh-CN': '模型数据格式错误：', ja: 'モデルデータの形式エラー：', ko: '모델 데이터 형식 오류: ', es: 'Datos de modelo no válidos: ', 'pt-BR': 'Dados de modelo inválidos: ' };
 const prefix = '模型資料格式錯誤：';
 
