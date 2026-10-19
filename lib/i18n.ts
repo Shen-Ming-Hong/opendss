@@ -1,9 +1,34 @@
 // 介面語言。字典以繁體中文原文為鍵；查不到時回傳原文，所以伺服器與引擎的訊息也能直接丟進 translate()。
 // OpenDSS 指令、元件名稱與報表內容一律維持英文，不翻譯。
-export type Lang = 'zh-TW' | 'en';
-export const languages: { code: Lang; name: string }[] = [{ code: 'zh-TW', name: '繁體中文' }, { code: 'en', name: 'English' }];
-// 上傳的檔案不是 UTF-8 時，依介面語言猜舊編碼（中文 Windows 常見 Big5，西文 Windows 常見 Windows-1252）。
-export const legacyEncoding: Record<Lang, string> = { 'zh-TW': 'big5', en: 'windows-1252' };
+import zhCN from './locales/zh-CN';
+import ja from './locales/ja';
+import ko from './locales/ko';
+import es from './locales/es';
+import ptBR from './locales/pt-BR';
+
+export type Lang = 'zh-TW' | 'zh-CN' | 'en' | 'ja' | 'ko' | 'es' | 'pt-BR';
+export const languages: { code: Lang; name: string; word: string }[] = [
+  { code: 'zh-TW', name: '繁體中文', word: '語言' }, { code: 'zh-CN', name: '简体中文', word: '语言' }, { code: 'en', name: 'English', word: 'Language' },
+  { code: 'ja', name: '日本語', word: '言語' }, { code: 'ko', name: '한국어', word: '언어' }, { code: 'es', name: 'Español', word: 'Idioma' }, { code: 'pt-BR', name: 'Português (Brasil)', word: 'Idioma' },
+];
+// 上傳的檔案不是 UTF-8 時，依介面語言猜舊編碼（各地區 Windows 常見的預設編碼）。
+export const legacyEncoding: Record<Lang, string> = { 'zh-TW': 'big5', 'zh-CN': 'gbk', en: 'windows-1252', ja: 'shift_jis', ko: 'euc-kr', es: 'windows-1252', 'pt-BR': 'windows-1252' };
+// 中日文用全形標點。
+export const fullWidth = (lang: Lang) => lang === 'zh-TW' || lang === 'zh-CN' || lang === 'ja';
+
+// 依瀏覽器語言挑介面語言；沒有對應的語言時用英文。
+export function detectLang(preferred: readonly string[]): Lang {
+  for (const tag of preferred) {
+    const code = tag.toLowerCase();
+    if (/^zh-(tw|hk|mo)|^zh-hant/.test(code)) return 'zh-TW';
+    if (/^zh/.test(code)) return 'zh-CN';
+    const base = code.split('-')[0];
+    if (base === 'en') return 'en';
+    if (base === 'ja' || base === 'ko' || base === 'es') return base;
+    if (base === 'pt') return 'pt-BR';
+  }
+  return 'en';
+}
 
 export const english: Record<string, string> = {
   // 功能表
@@ -79,14 +104,16 @@ export const english: Record<string, string> = {
   '網頁移植版不支援平行 Actor、外部系統命令與外部連線。': 'The web port does not support parallel actors, external system commands or external connections.',
   '引擎執行指令時發生內部錯誤，這個指令可能不適用於網頁移植版或目前的模型。': 'The engine hit an internal error. This command may not work in the web port or with this model.',
 };
-const prefixes: [string, string][] = [['模型資料格式錯誤：', 'Invalid model data: ']];
+const dictionaries: Partial<Record<Lang, Record<string, string>>> = { en: english, 'zh-CN': zhCN, ja, ko, es, 'pt-BR': ptBR };
+const prefixes: Partial<Record<Lang, string>> = { en: 'Invalid model data: ', 'zh-CN': '模型数据格式错误：', ja: 'モデルデータの形式エラー：', ko: '모델 데이터 형식 오류: ', es: 'Datos de modelo no válidos: ', 'pt-BR': 'Dados de modelo inválidos: ' };
+const prefix = '模型資料格式錯誤：';
 
 export function translate(lang: Lang, text: string, ...args: (string | number)[]) {
   let out = text;
-  if (lang === 'en') {
+  const dictionary = dictionaries[lang];
+  if (dictionary) {
     const key = text.trim();
-    const prefix = prefixes.find(([zh]) => key.startsWith(zh));
-    out = english[key] ?? (prefix ? prefix[1] + (english[key.slice(prefix[0].length)] ?? key.slice(prefix[0].length)) : text);
+    out = dictionary[key] ?? (key.startsWith(prefix) ? prefixes[lang] + (dictionary[key.slice(prefix.length)] ?? key.slice(prefix.length)) : text);
   }
   const filled = args.reduce<string>((value, arg, i) => value.replaceAll('{' + i + '}', String(arg)), out);
   return lang === 'en' ? filled.replace(/\b1 (file|buse|element|iteration)s\b/g, (_, word: string) => '1 ' + (word === 'buse' ? 'bus' : word)) : filled;
