@@ -50,7 +50,7 @@ WASM 來源、重建方法、授權聲明與數值驗證見 [engine/port/README.
 
 推送到 `main` 時，`.github/workflows/deploy.yml` 會建置並以 `wrangler deploy` 發布為 Cloudflare Worker `opendss`（名稱設定在 `vite.config.ts`），以 Workers 自訂網域綁定 `opendss.esperar-ai.org`。只改文件或 `.claude/` 不會觸發部署；也可在 Actions 頁面手動執行。
 
-需要的 repo secret：`CLOUDFLARE_API_TOKEN`（Cloudflare「Edit Cloudflare Workers」範本建立的 API token）。
+需要的 repo secret：`CLOUDFLARE_API_TOKEN`（Cloudflare「Edit Cloudflare Workers」範本建立的 API token）與 `CLOUDFLARE_ACCOUNT_ID`。
 
 ## 授權
 
