@@ -20,6 +20,7 @@ npm run dev -- --host 127.0.0.1
 npx tsc --noEmit
 python scripts/check-engine.py   # 需先啟動 dev
 node engine/port/test/run.mjs    # 直接驗證 WASM：電源 500.21 kW、負載端故障 22,902.3 A
+node scripts/visual-check.mjs    # 需先啟動 dev：桌機／筆電／平板／手機互動測試與截圖
 npm run build
 ```
 

@@ -55,3 +55,6 @@ next-env.d.ts
 /.codex/
 /outputs/
 /work/
+
+# Local visual test screenshots
+/visual-check/
