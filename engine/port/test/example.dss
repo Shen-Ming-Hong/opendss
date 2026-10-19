@@ -1,0 +1,7 @@
+Clear
+Set DefaultBaseFrequency=60
+New Circuit.Example phases=3 bus1=sourcebus basekv=11.4 pu=1.0 frequency=60
+New Line.Feeder phases=3 bus1=sourcebus bus2=loadbus length=0.5 units=km r1=0.2 x1=0.4 r0=0.6 x0=0.9 c1=0 c0=0
+New Load.Demand phases=3 bus1=loadbus conn=wye kv=11.4 kw=500 pf=0.95 model=1
+Set VoltageBases=[11.4]
+CalcVoltageBases
