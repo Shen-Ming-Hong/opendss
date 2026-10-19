@@ -1,10 +1,10 @@
 # OpenDSS 雲端工作台（OpenDSS Cloud Workbench）
 
+[繁體中文](README.md) | [简体中文](README.zh-CN.md) | [English](README.en.md) | [日本語](README.ja.md) | [한국어](README.ko.md) | [Español](README.es.md) | [Português (Brasil)](README.pt-BR.md)
+
 正式站：https://opendss.esperar-ai.org
 
 保留 OpenDSS 原生功能表與腳本工作流程的網頁介面，使用 EPRI OpenDSS（官方 C++ 版 VersionC）的 WASM 移植，在 Cloudflare Workers 執行計算。網站公開提供使用，無須登入。
-
-A web workbench that keeps the native OpenDSS menus and script workflow, running a WASM port of EPRI OpenDSS (the official C++ VersionC) on Cloudflare Workers. Free to use, no sign-in. The interface is available in seven languages.
 
 ## 使用
 
@@ -24,9 +24,7 @@ A web workbench that keeps the native OpenDSS menus and script workflow, running
 
 文字字典在 [lib/i18n.ts](lib/i18n.ts) 與 [lib/locales/](lib/locales/)：程式裡寫繁中原文並包 `t()`，各語言字典以繁中原文為鍵，伺服器錯誤訊息也在這裡翻譯。新增語言時在 `languages` 加一項、在 `lib/locales/` 加一份字典，並補上 `detectLang` 與 `legacyEncoding`。除繁中與英文外，其他語言由 Claude 翻譯、尚未經母語人士校稿，歡迎回報用詞。
 
-## Language
-
-The interface supports Traditional Chinese, Simplified Chinese, English, Japanese, Korean, Spanish and Brazilian Portuguese. It follows the browser language by default and can be switched from the top-right of the title bar; the choice is remembered in the browser. OpenDSS commands, element names and report contents stay in English. Translations live in [lib/i18n.ts](lib/i18n.ts) and [lib/locales/](lib/locales/); languages other than Traditional Chinese and English were machine-translated by Claude and have not been reviewed by native speakers.
+本說明文件也有上方列出的各語言版本，內容以繁中版為準。
 
 ## 本機開發
 
