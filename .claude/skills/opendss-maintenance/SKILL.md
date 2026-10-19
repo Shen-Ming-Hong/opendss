@@ -1,9 +1,11 @@
 ---
 name: opendss-maintenance
-description: 維護 OpenDSS 繁中雲端工作台（Next/vinext 網站、OpenDSS VersionC WASM 引擎、Cloudflare Workers 部署）時使用：改程式、驗證、重建引擎、發布。
+description: 維護 OpenDSS 雲端工作台（OpenDSS Cloud Workbench；Next/vinext 網站、OpenDSS VersionC WASM 引擎、Cloudflare Workers 部署）時使用：改程式、驗證、重建引擎、發布。
 ---
 
 # OpenDSS 雲端工作台維護
+
+網站名稱是「OpenDSS 雲端工作台／OpenDSS Cloud Workbench」。介面與文件用語保持通用，不要把名稱或描述寫死成特定語言或地區（例如「繁體中文工作台」），也不要提到 Ray 個人的電腦。
 
 以繁體中文與 Ray 溝通。
 

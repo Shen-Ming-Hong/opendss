@@ -2,6 +2,8 @@
 // OpenDSS 指令、元件名稱與報表內容一律維持英文，不翻譯。
 export type Lang = 'zh-TW' | 'en';
 export const languages: { code: Lang; name: string }[] = [{ code: 'zh-TW', name: '繁體中文' }, { code: 'en', name: 'English' }];
+// 上傳的檔案不是 UTF-8 時，依介面語言猜舊編碼（中文 Windows 常見 Big5，西文 Windows 常見 Windows-1252）。
+export const legacyEncoding: Record<Lang, string> = { 'zh-TW': 'big5', en: 'windows-1252' };
 
 export const english: Record<string, string> = {
   // 功能表
@@ -22,7 +24,7 @@ export const english: Record<string, string> = {
   '節點電壓': 'Node voltages', '元件電流': 'Element Currents', '元件功率': 'Element powers', '損失': 'Losses', '故障電流': 'Fault Currents', '變壓器分接頭': 'Transformer taps', '過載元件': 'Overloads', '未供電負載': 'Unserved loads', '電度表': 'Meters', '發電機': 'Generators', '收斂情形': 'Convergence', '孤立匯流排': 'Isolated buses', '元件清單': 'Element list', '匯流排清單': 'Bus list', '功率不平衡': 'Power mismatch', '電壓基準不符': 'kV base mismatch', '狀態變數': 'State variables', '元件 Y 矩陣': 'Element Y matrices', '事件紀錄': 'Event log', '保護區域': 'Zones', '額定值': 'Ratings', '迴路': 'Loops',
   '匯流排電壓': 'Bus Voltages', '序電壓': 'Sequence voltages', '序電流': 'Sequence currents', '元件損失': 'Element losses', '電路摘要': 'Summary', '負載': 'Loads', '饋線容量': 'Feeder capacity', '分接頭': 'Taps', '電壓剖面': 'Voltage Profile', '匯流排座標': 'Bus coordinates', '節點名稱': 'Node names', '系統 Y 矩陣': 'System Y matrix', '元件數量': 'Element counts', '文字報表': 'Reports', '電路圖': 'Circuit', '曲線圖': 'Curves',
   // 標題、工具列、選擇列
-  '繁體中文雲端工作台': 'Cloud Workbench', '免登入使用': 'No sign-in required', '使用說明': 'Help', '主要功能表': 'Main menu', '熟悉的指令，熟悉的工作流程': 'Familiar commands, familiar workflow', '常用工具': 'Toolbar',
+  '雲端工作台': 'Cloud Workbench', '免登入使用': 'No sign-in required', '使用說明': 'Help', '主要功能表': 'Main menu', '熟悉的指令，熟悉的工作流程': 'Familiar commands, familiar workflow', '常用工具': 'Toolbar',
   '開啟檔案': 'Open files', '下載目前檔案（⌘/Ctrl+S）': 'Download current file (⌘/Ctrl+S)', 'Compile：載入並執行主檔': 'Compile: load and run the main script', '編譯': 'Compile', '執行中': 'Running', '求解': 'Solve', '摘要': 'Summary',
   '切換主要指令視窗': 'Toggle main command window', '指令視窗': 'Commands', '雲端已連線': 'Cloud connected', '正在檢查雲端引擎': 'Checking cloud engine', '雲端引擎已連線': 'Cloud engine connected', '引擎暫時無法連線': 'Engine unavailable',
   '元件類型': 'Element Type', '全部元件': 'All elements', '電壓源': 'Voltage source', '變壓器': 'Transformer', '線路': 'Line', '太陽光電': 'PV system', '選取電路元件': 'Select circuit element', '選取元件…': 'Select element…', '請先編譯模型': 'Compile the model first', '顯示元件資訊': 'Show element info',
@@ -54,7 +56,7 @@ export const english: Record<string, string> = {
   '選擇 CSV 報表': 'Choose CSV report', '橫軸': 'X axis',
   // 說明
   '關閉說明': 'Close help', '熟悉的 OpenDSS，現在在瀏覽器。': 'The OpenDSS you know, now in your browser.',
-  '此工作台保留原版功能表、工具列、模型腳本與主要指令視窗。計算由雲端的 OpenDSS-C WASM 引擎執行，無須保持 Mac 開機。': 'This workbench keeps the original menus, toolbar, model script and main command window. Calculations run on the OpenDSS-C WASM engine in the cloud, so nothing has to run on your computer.',
+  '此工作台保留原版功能表、工具列、模型腳本與主要指令視窗。計算由雲端的 OpenDSS-C WASM 引擎執行，不需要在自己的電腦上安裝任何程式。': 'This workbench keeps the original menus, toolbar, model script and main command window. Calculations run on the OpenDSS-C WASM engine in the cloud, so there is nothing to install on your computer.',
   '開啟模型': 'Open a model', '：選擇 .dss 主檔與其引用檔案，或開啟整個模型資料夾。': ': choose the .dss main script and the files it references, or open a whole model folder.',
   '編譯 Compile': 'Compile', '：載入主檔，依序執行檔案內的指令。': ': loads the main script and runs its commands in order.',
   '求解 Solve': 'Solve', '：套用額外指令，執行所選模式的潮流或故障分析。選「依腳本設定」時不另外求解，Daily、Harmonics 等模式請用「設定」功能表加入 Set Mode 與 Solve。': ': applies the extra commands and runs a power flow or fault study in the selected mode. "As set by script" adds no extra Solve; for Daily, Harmonics and other modes, add Set Mode and Solve from the Set menu.',
