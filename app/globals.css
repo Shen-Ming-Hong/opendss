@@ -20,3 +20,5 @@
 .plot-controls{display:flex;flex-wrap:wrap;gap:8px 12px;align-items:center;font-size:11px;color:#53677b}.plot-controls select{font-size:11px;max-width:100%}.column-chips{display:flex;flex-wrap:wrap;gap:4px 10px}.column-chips label{display:flex;align-items:center;gap:3px}.plot-legend{display:flex;flex-wrap:wrap;gap:4px 12px;font-size:11px;color:#53677b}
 .term-en{margin-left:4px;font-size:.82em;color:#8b9cb0;font-weight:400}.result-tabs .term-en{font-size:9px}.language-picker{display:flex;align-items:center;gap:4px;color:#72859b}.language-picker select{font-size:11px;border:1px solid #dfe7ef;border-radius:4px;padding:2px 4px;background:white;color:#41566b}
 @media(max-width:760px){.no-login{display:none!important}.result-tabs .term-en{display:none}.language-picker select{font-size:10px}}
+.language-label{font-size:11px}
+@media(max-width:760px){.language-label{display:none}}
