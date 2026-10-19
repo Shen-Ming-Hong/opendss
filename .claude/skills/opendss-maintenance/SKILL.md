@@ -23,6 +23,7 @@ description: 維護 OpenDSS 繁中雲端工作台（Next/vinext 網站、OpenDSS
 - `engine/wasm/`：已編譯的 `OpenDSSWasm.wasm`、`opendss.mjs`、`opendss.d.mts`。
 - `engine/port/`：重建 WASM 的 `portability.patch`、`bridge.cpp`、`CMakeLists.txt`、`shim/`、`test/`，以及授權檔 `OPENDSS_LICENSE.txt`（EPRI BSD-3）與 `licenses/`（KLU 等 LGPL 2.1）。
 - `scripts/check-engine.py`：對本機 dev 伺服器的 API 驗證。
+- `scripts/visual-check.mjs`：四種裝置尺寸的瀏覽器互動與截圖測試（playwright-core，用環境內建的 Chromium）。
 - 網站完全免登入、不存使用者資料；草稿存在瀏覽器，靠「下載完整專案」(.opendss.json) 轉移。
 
 ## 不可違反的限制
@@ -31,6 +32,8 @@ description: 維護 OpenDSS 繁中雲端工作台（Next/vinext 網站、OpenDSS
 - Worker 內 WASM 必須靜態匯入 `WebAssembly.Module` 配合 `instantiateWasm`，不可用 fetch 或動態編譯。WASM 記憶體初始 32 MiB、最大 96 MiB，整個 Worker 上限 128 MiB。
 - 每次計算都要新引擎實例（原生引擎 Clear 後會殘留狀態），不要改成共用實例。
 - 不支援原生 DLL、COM、外部命令、平行 Actor；不要宣稱是 EPRI 認證版本。
+- `engine/runtime.ts` 把 `system()` 改成回報成功（Dump、FileEdit 等寫完檔案會想開編輯器），並擋掉會讓引擎記憶體越界或卡住的 Distribute、Refine_BusLevels、Tear_Circuit、Export Sections。引擎內部錯誤一律轉成友善訊息。
+- 求解模式 `script`（依腳本設定）走 compileOnly 路徑：執行額外指令但不再強制 Solve，用來跑 Daily、Harmonics 等模式。
 - 散布引擎時必須保留 `engine/port/OPENDSS_LICENSE.txt` 與 `licenses/`。上游只能用 SourceForge `electricdss` 的 `trunk/VersionC`（有 BSD-3）；不要改回沒有授權檔的 GitHub `epri-dev/OpenDSS-C`。
 - 留意 Ray 的 Workers 額度（每月 1,000 萬請求、3,000 萬 CPU ms 內含）。
 
@@ -42,6 +45,7 @@ description: 維護 OpenDSS 繁中雲端工作台（Next/vinext 網站、OpenDSS
    - `npx tsc --noEmit`
    - `node engine/port/test/run.mjs`：電源應為 500.21 kW／164.77 kvar，負載端故障 22,902.3 A。加 IEEE 123 資料夾路徑可再核對（132 匯流排、237 元件、電源約 3615.24 kW）。
    - `npm run dev -- --host 127.0.0.1` 啟動後跑 `python3 scripts/check-engine.py`，要印出 PASS。有 OpenDSSDirect.py 時會再比對原生數值。
+   - **全尺寸裝置視覺互動測試（每次改完程式都要跑）**：dev 伺服器開著時執行 `node scripts/visual-check.mjs --out /tmp/visual`。它用 Playwright 在桌機 1920、筆電 1366、平板 820、手機 390 四種尺寸操作首頁連線、求解範例、從「顯示」功能表產生 Show 報表，並檢查沒有瀏覽器錯誤、沒有水平捲動、報表後結果沒被標成過期。要印出 PASS，並用 Read 實際看過截圖（至少筆電與手機的報表畫面）再回報。改了版面或新增互動時，把新流程加進這支腳本。
    - `npm run build` 要成功。
    - `npm run lint` 目前已有既存錯誤（workbench.tsx 的 react-hooks、runtime.ts 的 module 變數、產生的 opendss.mjs），只確認沒有新增。
 4. 開 PR，Ray 合併到 `main` 後，`.github/workflows/deploy.yml` 會自動 build 並 `wrangler deploy`。只改 `*.md` 或 `.claude/` 不會部署。

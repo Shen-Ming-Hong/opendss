@@ -58,6 +58,14 @@ assert other['circuit'] == 'other' and other['power'][0] > 749
 again = request(model())
 assert again['circuit'] == 'check' and again['reports'] == []
 assert max(abs(a-b) for a,b in zip(first['power'], again['power'])) < 1e-8
+dump = request(model(commands='Solve\nDump'))
+assert any('propertydump' in item['name'].lower() for item in dump['reports']), dump['reports']
+saved = request(model(commands='Solve\nSave Circuit Dir=saved'))
+assert any(item['name'].lower() == 'saved/master.dss' for item in saved['reports']), saved['reports']
+for blocked in ('Distribute kw=100', 'Refine_BusLevels', 'Tear_Circuit', 'Export Sections'):
+    request(model(commands='Solve\n' + blocked), 422)
+daily = request(model(commands='Set Mode=Daily\nSolve', analysis='script'))
+assert daily['mode'] == 'Daily', daily['mode']
 uncompiled = request(model('Clear\nNew Circuit.Unsolved BasekV=12.47\n', action='compile'))
 assert uncompiled['circuit'] == 'unsolved'
 
@@ -90,4 +98,4 @@ else:
         error = max(abs(a-b) for a,b in zip(native, wasm))
         assert error < 1e-7, error
         print('IEEE 123: voltage error', error, 'p.u.;', ieee['elapsedMS'], 'ms')
-print('PASS: anonymous page/API, snapshot, fault, reports, invalid/recovery, origin, readonly FS, state cleanup, unsolved compile')
+print('PASS: anonymous page/API, snapshot, fault, reports, editor commands, save circuit, blocked commands, script mode, invalid/recovery, origin, readonly FS, state cleanup, unsolved compile')
