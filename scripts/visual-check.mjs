@@ -50,7 +50,9 @@ for (const device of devices) {
     await page.getByRole("button", { name: "匯流排電壓圖" }).click();
     await page.locator(".voltage-plot svg polyline").first().waitFor();
     await page.locator(".plot-views button", { hasText: "電路圖" }).click();
-    await page.getByText(/模型沒有匯流排座標/).waitFor();
+    await page.locator(".plot-panel", { hasText: "電路圖（Plot Circuit）" }).waitFor();
+    await page.locator(".plot-views button", { hasText: "電壓剖面" }).click();
+    await page.locator(".plot-panel", { hasText: "電壓剖面（Plot Profile）" }).waitFor();
   });
   await page.screenshot({ path: `${out}/${device.name}-5-plot.png`, fullPage: true });
   await step("切換英文介面", async () => {

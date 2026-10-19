@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { Activity, ArrowDownToLine, Braces, Check, CircleHelp, Cloud, Code2, Download, FilePlus2, FileText, FolderOpen, Gauge, Globe, Info, Loader2, Maximize2, Network, PanelRightClose, Play, Save, Search, Settings2, Terminal, X, Zap } from 'lucide-react';
-import { example, exampleEn, type ModelFile, type Result } from '../lib/model';
+import { example, type ModelFile, type Result } from '../lib/model';
 import { detectLang, english, fullWidth, languages, legacyEncoding, translate, type Lang } from '../lib/i18n';
 import { CircuitPlot, CurvePlot, ProfilePlot } from './plots';
 
@@ -10,8 +10,19 @@ type Tab = 'summary' | 'voltage' | 'current' | 'fault' | 'plot' | 'reports';
 type Log = { time: string; message: string; kind: string };
 type PlotView = 'voltage' | 'circuit' | 'profile' | 'curve';
 const tabs: [Tab,string][] = [['summary','電路摘要'],['voltage','匯流排電壓'],['current','元件電流'],['fault','故障電流'],['plot','繪圖'],['reports','文字報表']];
-const initialFiles = [{name:'Demo_Feeder.dss',content:example}];
-const exampleFiles = (lang:Lang) => lang==='zh-TW'||lang==='zh-CN'?initialFiles:[{name:'Demo_Feeder.dss',content:exampleEn}];
+const initialFiles = example;
+const exampleFiles = () => example;
+// 瀏覽器語言決定介面語言；手動選的語言只在瀏覽器語言沒變時沿用。
+const browserLang = () => detectLang(navigator.languages?.length?navigator.languages:[navigator.language]);
+function preferredLang():Lang {
+  const browser=browserLang();
+  try{const stored=JSON.parse(localStorage.getItem('opendss-lang')??'null');if(stored?.browser===browser&&languages.some(item=>item.code===stored.lang))return stored.lang;}catch{}
+  return browser;
+}
+// 舊版預設範例（未修改的草稿）改載入新範例。
+const retiredExamples = ['k8w4kf','1dilmmt'];
+const textHash = (text:string) => {let x=5381;for(const c of text)x=(x*33+c.codePointAt(0)!)>>>0;return x.toString(36);};
+const isRetiredExample = (files:ModelFile[]) => files.length===1&&files[0].name==='Demo_Feeder.dss'&&retiredExamples.includes(textHash(files[0].content));
 function download(name:string,content:string,mime='text/plain;charset=utf-8') {
   const url=URL.createObjectURL(new Blob([content],{type:mime}));
   const anchor=document.createElement('a'); anchor.href=url; anchor.download=name; anchor.click();
@@ -24,14 +35,14 @@ function paint(line:string) {
 
 export default function Workbench() {
   const [files,setFiles]=useState<ModelFile[]>(initialFiles);
-  const [entry,setEntry]=useState('Demo_Feeder.dss');
-  const [active,setActive]=useState('Demo_Feeder.dss');
+  const [entry,setEntry]=useState(initialFiles[0].name);
+  const [active,setActive]=useState(initialFiles[0].name);
   const [lang,setLang]=useState<Lang>('zh-TW');
   const t=(text:string,...args:(string|number)[])=>translate(lang,text,...args);
   // 專業名詞在中文介面旁補英文。
   const term=(text:string)=>lang==='en'?t(text):<>{t(text)}{english[text]&&<small className="term-en">{english[text]}</small>}</>;
   const fmt=(value:number|undefined,digits=3)=>Number.isFinite(value)?value!.toLocaleString(lang,{minimumFractionDigits:digits,maximumFractionDigits:digits}):'—';
-  function chooseLang(next:Lang){setLang(next);try{localStorage.setItem('opendss-lang',next);}catch{}}
+  function chooseLang(next:Lang){setLang(next);try{localStorage.setItem('opendss-lang',JSON.stringify({lang:next,browser:browserLang()}));}catch{}}
   const paren=(text:string,en:string)=>fullWidth(lang)?text+'（'+en+'）':text+' ('+en+')';
   const word=languages.find(item=>item.code===lang)!.word;
   const [commands,setCommands]=useState('');
@@ -61,19 +72,19 @@ export default function Workbench() {
   revision.current=JSON.stringify({files,entry,commands,mode});
   function log(message:string,kind='info') {setLogs(prev=>[...prev.slice(-99),{time:new Date().toLocaleTimeString(lang,{hour12:false}),message,kind}]);}
   useEffect(()=>{
-    let language:Lang=detectLang(navigator.languages?.length?navigator.languages:[navigator.language]);
-    try{const stored=localStorage.getItem('opendss-lang');if(languages.some(item=>item.code===stored))language=stored as Lang;}catch{}
-    setLang(language);
+    setLang(preferredLang());
+    const followBrowser=()=>setLang(preferredLang());
+    window.addEventListener('languagechange',followBrowser);
     try {
       const saved=JSON.parse(localStorage.getItem('opendss-workspace-v1')??'null');
-      if(saved?.files?.length && saved.files.every((file:ModelFile)=>typeof file.name==='string'&&typeof file.content==='string') && saved.files.some((file:ModelFile)=>file.name===saved.entry)) {
+      if(saved?.files?.length && saved.files.every((file:ModelFile)=>typeof file.name==='string'&&typeof file.content==='string') && saved.files.some((file:ModelFile)=>file.name===saved.entry) && !isRetiredExample(saved.files)) {
         setFiles(saved.files);setEntry(saved.entry);setActive(saved.entry);setCommands(saved.commands??'');
-      } else setFiles(exampleFiles(language));
+      } else setFiles(exampleFiles());
     } catch {}
     setRestored(true);
     const controller=new AbortController();
     fetch('/api/engine',{signal:controller.signal}).then(async response=>{const data=await response.json() as {error?:string};setConnected(response.ok);setConnection(response.ok?'雲端引擎已連線':data.error??'引擎暫時無法連線');}).catch(()=>{if(!controller.signal.aborted)setConnection('引擎暫時無法連線');});
-    return ()=>controller.abort();
+    return ()=>{controller.abort();window.removeEventListener('languagechange',followBrowser);};
   },[]);
   useEffect(()=>{
     if(!restored)return;
@@ -139,7 +150,7 @@ export default function Workbench() {
     download(result.circuit+'_voltages.csv','\uFEFF'+csv,'text/csv;charset=utf-8');log(t('已匯出匯流排電壓 CSV。'));
   }
   function newModel(){if(!window.confirm(t('建立新模型會取代此裝置的草稿，確定繼續？')))return;const name='Untitled.dss';setFiles([{name,content:'Clear\nNew Circuit.Untitled BasekV=11.4 pu=1.0 Phases=3\n\nSet VoltageBases=[11.4]\nCalcVoltageBases\nSolve\n'}]);setEntry(name);setActive(name);setCommands('');setResult(null);log(t('已建立新模型。'));}
-  function restoreExample(){if(!window.confirm(t('載入範例會取代此裝置的草稿，確定繼續？')))return;setFiles(exampleFiles(lang));setEntry(initialFiles[0].name);setActive(initialFiles[0].name);setCommands('');setResult(null);log(t('已載入三相配電範例。'));}
+  function restoreExample(){if(!window.confirm(t('載入範例會取代此裝置的草稿，確定繼續？')))return;setFiles(exampleFiles());setEntry(initialFiles[0].name);setActive(initialFiles[0].name);setCommands('');setResult(null);log(t('已載入 IEEE 13 節點測試饋線範例。'));}
   function selectLine(){const area=editor.current;if(!area)return;const before=source.slice(0,area.selectionStart);const selected=source.slice(area.selectionStart,area.selectionEnd)||source.split('\n')[before.split('\n').length-1];setCommands(prev=>prev+'\n'+selected+'\n');setShowConsole(true);log(t('已將選取內容加入主要指令視窗，請確認後執行。'));}
   function queue(lines:string){setCommands(prev=>prev.trimEnd()+'\n'+lines+'\n');setShowConsole(true);log(t('已將 {0} 加入主要指令視窗，請按「執行指令」。',lines.split('\n')[0]));}
   function setScriptMode(name:string){setMode('script');setStale(!!result);queue('Set Mode='+name+'\nSolve');}
@@ -176,7 +187,7 @@ export default function Workbench() {
     <div className="script-row"><Code2 size={15}/><label htmlFor="entry">{t('主腳本')}</label><select id="entry" value={entry} onChange={event=>{setEntry(event.target.value);setActive(event.target.value);setStale(!!result);}}>{files.filter(file=>/\.dss$/i.test(file.name)).map(file=><option key={file.name}>{file.name}</option>)}</select><button title={t('編譯主腳本')} aria-label={t('編譯主腳本')} disabled={busy} onClick={()=>run('compile')}><Braces size={15}/></button><span className="draft-label"><Check size={13}/>{t('草稿暫存於此裝置')}</span><span className="file-count">{t('{0} 個檔案',files.length)}</span></div>
     <div className={'result-strip '+(result&&!stale?'has-result':'')} role="status"><span className="result-label">{t('結果')}</span>{busy?<><Loader2 size={13} className="spin"/><span>{t('雲端引擎正在執行模型…')}</span></>:result?<><span className={'status-dot '+(stale?'warning':result.converged?'success':'error')}/><strong>{stale?t('模型已變更，請重新求解'):result.converged?t('計算收斂'):t('計算尚未收斂')}</strong><span className="strip-detail">{result.circuit} · {t('{0} 個匯流排 · {1} 個元件',result.buses.length,result.elements.length)}</span><span className="strip-time">{result.elapsedMS} ms</span></>:<><span className="status-dot"/><span>{t('尚未編譯模型。開啟 .dss 主檔，或直接編譯目前範例。')}</span></>}</div>
     <div className={'editor-workspace '+(!showConsole?'console-hidden':'')}><section className="script-editor" aria-label={t('模型腳本編輯器')}><div className="panel-heading"><span><Code2 size={14}/>{t('模型腳本')}</span><div className="panel-actions"><button aria-label={t('縮小字體')} onClick={()=>setFontSize(size=>Math.max(11,size-1))}>A−</button><button aria-label={t('放大字體')} onClick={()=>setFontSize(size=>Math.min(20,size+1))}>A+</button><button title={t('放大編輯區')} aria-label={t('放大編輯區')} onClick={()=>{setShowConsole(false);setShowResults(false);}}><Maximize2 size={13}/></button></div></div><div className="file-tabs" role="tablist" aria-label={t('已開啟檔案')}>{files.map(file=><button role="tab" aria-selected={active===file.name} className={active===file.name?'selected':''} key={file.name} onClick={()=>setActive(file.name)}><FileText size={13}/>{file.name}{entry===file.name&&<span className="entry-dot" title={t('主腳本')}/>}</button>)}</div><div className="code-editor" style={{fontSize}}><div className="line-numbers" ref={gutter} aria-hidden="true">{source.split('\n').map((_,i)=><div key={i}>{i+1}</div>)}</div><div className="code-surface"><pre ref={painted} aria-hidden="true">{source.split('\n').map((line,i)=><div key={i}>{paint(line)}{'\n'}</div>)}</pre><textarea ref={editor} aria-label={t('DSS 模型內容')} value={source} spellCheck={false} wrap="off" onChange={event=>{const content=event.target.value;setFiles(prev=>prev.map(file=>file.name===active?{...file,content}:file));setStale(!!result);}} onScroll={event=>{if(painted.current){painted.current.scrollTop=event.currentTarget.scrollTop;painted.current.scrollLeft=event.currentTarget.scrollLeft;}if(gutter.current)gutter.current.scrollTop=event.currentTarget.scrollTop;}} onSelect={()=>{const before=source.slice(0,editor.current?.selectionStart??0).split('\n');setCaret({line:before.length,column:before.at(-1)!.length+1});}}/></div></div><div className="editor-footer"><span>{t('DSS 腳本 · UTF-8')}</span><span>{t('第 {0} 行，第 {1} 欄',caret.line,caret.column)}</span></div></section>
-    {showConsole&&<section className="console-panel" aria-label={t('主要指令視窗')}><div className="panel-heading"><span><Terminal size={14}/>{t('主要指令視窗')}</span><button title={t('隱藏指令視窗')} aria-label={t('隱藏指令視窗')} onClick={()=>setShowConsole(false)}><PanelRightClose size={14}/></button></div><div className="scratch-caption">Main Script Window <span>{t('額外指令')}</span></div><textarea className="scratch-editor" aria-label={t('額外 DSS 指令')} placeholder={t('額外指令可輸入於此，再按「執行指令」。例如：Edit Load.Load1 kW=1000')} value={commands} spellCheck={false} onChange={event=>{setCommands(event.target.value);setStale(!!result);}}/><div className="scratch-actions"><span><i/>{t('套用於目前主腳本')}</span><button disabled={busy} onClick={()=>run()}><Play size={11} fill="currentColor"/>{t('執行指令')}</button></div><div className="console-log-heading"><span>{t('執行紀錄')}</span><button onClick={()=>setLogs([])}>{t('清除')}</button></div><div className="console-log" role="log" aria-label={t('執行紀錄')}>{logs.length?logs.map((line,i)=><div className={'log-line '+line.kind} key={i}><time>{line.time}</time><span>{line.message}</span></div>):<div className="log-welcome"><Terminal size={22}/><span>{t('已準備就緒')}</span><p>{t('編譯模型後，執行紀錄會顯示於此。')}</p></div>}<div ref={logEnd}/></div><form className="command-input" onSubmit={event=>{event.preventDefault();if(!input.trim()||busy)return;const next=commands+'\n'+input+'\n';setCommands(next);setInput('');run('solve',next);}}><span>›</span><input aria-label={t('輸入單行 DSS 指令')} placeholder={t('輸入指令，例如 Summary')} value={input} onChange={event=>setInput(event.target.value)}/><button disabled={busy||!input.trim()} aria-label={t('送出指令')}><ArrowDownToLine size={14} className="send-arrow"/></button></form></section>}</div>
+    {showConsole&&<section className="console-panel" aria-label={t('主要指令視窗')}><div className="panel-heading"><span><Terminal size={14}/>{t('主要指令視窗')}</span><button title={t('隱藏指令視窗')} aria-label={t('隱藏指令視窗')} onClick={()=>setShowConsole(false)}><PanelRightClose size={14}/></button></div><div className="scratch-caption">Main Script Window <span>{t('額外指令')}</span></div><textarea className="scratch-editor" aria-label={t('額外 DSS 指令')} placeholder={t('額外指令可輸入於此，再按「執行指令」。例如：Edit Load.671 kW=1000')} value={commands} spellCheck={false} onChange={event=>{setCommands(event.target.value);setStale(!!result);}}/><div className="scratch-actions"><span><i/>{t('套用於目前主腳本')}</span><button disabled={busy} onClick={()=>run()}><Play size={11} fill="currentColor"/>{t('執行指令')}</button></div><div className="console-log-heading"><span>{t('執行紀錄')}</span><button onClick={()=>setLogs([])}>{t('清除')}</button></div><div className="console-log" role="log" aria-label={t('執行紀錄')}>{logs.length?logs.map((line,i)=><div className={'log-line '+line.kind} key={i}><time>{line.time}</time><span>{line.message}</span></div>):<div className="log-welcome"><Terminal size={22}/><span>{t('已準備就緒')}</span><p>{t('編譯模型後，執行紀錄會顯示於此。')}</p></div>}<div ref={logEnd}/></div><form className="command-input" onSubmit={event=>{event.preventDefault();if(!input.trim()||busy)return;const next=commands+'\n'+input+'\n';setCommands(next);setInput('');run('solve',next);}}><span>›</span><input aria-label={t('輸入單行 DSS 指令')} placeholder={t('輸入指令，例如 Summary')} value={input} onChange={event=>setInput(event.target.value)}/><button disabled={busy||!input.trim()} aria-label={t('送出指令')}><ArrowDownToLine size={14} className="send-arrow"/></button></form></section>}</div>
     {showResults&&<section className="results-panel" aria-label={t('計算結果')}><div className="results-top"><div className="result-tabs" role="tablist" aria-label={t('結果分類')}>{tabs.map(([key,name])=><button role="tab" aria-selected={tab===key} key={key} className={tab===key?'selected':''} onClick={()=>setTab(key)}>{term(name)}</button>)}</div><button className="collapse-results" aria-label={t('隱藏結果視窗')} onClick={()=>setShowResults(false)}><X size={14}/></button></div>{result?<div className={'result-content '+(stale?'stale':'')}>
       {tab==='summary'&&<div className="summary-grid"><div><span>{term('作用中電路')}</span><strong className="circuit-name">{result.circuit}</strong><small>{result.mode} · {result.frequency} Hz</small></div><div><span>{term('電源供電')}</span><strong>{fmt(result.power[0])}<em>kW</em></strong><small>{fmt(result.power[1])} kvar</small></div><div><span>{term('總有功損失')}</span><strong>{fmt(result.losses[0])}<em>kW</em></strong><small>{result.power[0]?fmt(result.losses[0]/Math.abs(result.power[0])*100):'—'}{t('% 佔電源供電')}</small></div><div><span>{t('相電壓範圍（節點 1–3）')}</span><strong>{fmt(minPU,4)}<em>– {fmt(maxPU,4)} p.u.</em></strong><small>{t('{0} 匯流排 · {1} 次迭代',result.buses.length,result.iterations)}</small></div></div>}
       {(tab==='voltage'||tab==='fault')&&<><div className="table-tools"><span>{tab==='fault'?t('各匯流排三相短路電流'):t('相對中性點電壓 · BasekV 為相電壓')}</span><label><Search size={13}/><input aria-label={t('搜尋匯流排')} placeholder={t('搜尋匯流排…')} value={query} onChange={event=>setQuery(event.target.value)}/></label></div>{tab==='fault'&&!result.buses.some(bus=>bus.faultAmps.length)?<div className="inline-empty"><Info size={17}/>{t('請將求解模式設為「故障分析」，再按「求解」。')}</div>:<table><thead><tr><th>{t('匯流排 Bus')}</th><th>{t('BasekV（L-N）')}</th>{[1,2,3].map(node=><th key={node}>{t('節點 {0}',node)} {tab==='fault'?'(A)':'(p.u.)'}</th>)}</tr></thead><tbody>{buses.map(bus=><tr key={bus.name}><td>{bus.name}</td><td>{fmt(bus.baseKV)}</td>{[1,2,3].map(node=>{const value=(tab==='fault'?bus.faultAmps:bus.pu)[bus.nodes.indexOf(node)];return <td key={node} className={tab==='voltage'&&value!==undefined&&(value<.95||value>1.05)?'violation':''}>{fmt(value,tab==='fault'?1:5)}</td>;})}</tr>)}</tbody></table>}</>}
