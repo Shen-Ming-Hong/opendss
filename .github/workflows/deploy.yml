@@ -7,6 +7,12 @@ on:
     paths-ignore:
       - "**/*.md"
       - ".claude/**"
+      # 引擎 C++ 原始碼：網站只用 engine/wasm 的建置結果
+      - "engine/port/**"
+      # 只在開發環境跑的檢查腳本，不影響部署內容
+      - "scripts/check-engine.py"
+      - "scripts/check-i18n.ts"
+      - "scripts/visual-check.mjs"
   workflow_dispatch:
 
 concurrency:
