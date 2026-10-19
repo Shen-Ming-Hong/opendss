@@ -14,3 +14,9 @@
 @media(prefers-reduced-motion:reduce){.spin{animation:none}}
 
 .result-tabs>button,.summary-grid span,.editor-footer,.status-bar,.scratch-caption{color:#647b92}.result-tabs>button.selected{color:#2867aa}.menu-end,.version-badge{color:#73879b}
+
+.plot-views{display:flex;gap:4px;padding:8px 12px 0;flex-wrap:wrap}.plot-views>button{font-size:11px;padding:5px 11px;border-radius:14px;border:1px solid #d9e3ed;background:#fff;color:#53677b}.plot-views>button.selected{background:#e5eef8;border-color:#b9d0ea;color:#2d6cae}
+.plot-panel{display:flex;flex-direction:column;gap:8px;padding:12px 18px}.plot-panel svg{width:100%;height:auto;max-height:440px}.plot-panel svg text{font-size:10px;fill:#7b8a99}.plot-panel .plot-description{display:flex;flex-wrap:wrap;align-items:center;gap:6px 14px;font-size:11px;color:#53677b}.plot-panel .plot-description i,.plot-legend i{display:inline-block;width:10px;height:3px;border-radius:2px;margin:0 4px 2px 6px;vertical-align:middle}
+.plot-controls{display:flex;flex-wrap:wrap;gap:8px 12px;align-items:center;font-size:11px;color:#53677b}.plot-controls select{font-size:11px;max-width:100%}.column-chips{display:flex;flex-wrap:wrap;gap:4px 10px}.column-chips label{display:flex;align-items:center;gap:3px}.plot-legend{display:flex;flex-wrap:wrap;gap:4px 12px;font-size:11px;color:#53677b}
+.term-en{margin-left:4px;font-size:.82em;color:#8b9cb0;font-weight:400}.result-tabs .term-en{font-size:9px}.language-picker{display:flex;align-items:center;gap:4px;color:#72859b}.language-picker select{font-size:11px;border:1px solid #dfe7ef;border-radius:4px;padding:2px 4px;background:white;color:#41566b}
+@media(max-width:760px){.no-login{display:none!important}.result-tabs .term-en{display:none}.language-picker select{font-size:10px}}

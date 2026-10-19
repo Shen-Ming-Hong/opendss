@@ -3,6 +3,8 @@ import createDSS, { type DSSModule } from "./wasm/opendss.mjs";
 import { z } from "zod";
 import type { Result } from "../lib/model";
 
+const PLOT = "/work/__plot_";
+
 const schema = z.object({
   files: z.array(z.object({
     name: z.string().min(1).max(240).refine(name => !name.startsWith("/") && !/[\\:\x00\n\r\"]/.test(name) && name.split("/").every(part => part && part !== "." && part !== "..") && /\.(dss|csv|txt|dat)$/i.test(name), "請使用安全的相對檔案路徑。"),
@@ -38,7 +40,7 @@ export async function ready() {
   });
 }
 
-export async function runModel(input: unknown): Promise<Result> {
+export async function runModel(input: unknown, plotData = true): Promise<Result> {
   const parsed = schema.safeParse(input);
   if (!parsed.success) throw new Error("模型資料格式錯誤：" + parsed.error.issues[0].message);
   const payload = parsed.data;
@@ -60,10 +62,15 @@ export async function runModel(input: unknown): Promise<Result> {
     }
     // 「依腳本」模式不強制最後再 Solve：沿用 compileOnly 路徑，但仍執行額外指令。
     const script = payload.analysis === "script";
+    // 繪圖資料：匯流排座標一律匯出；電壓剖面要在求解後、故障分析以外才有意義。
+    let plot = plotData ? "\nExport BusCoords " + PLOT + "coords.csv" : "";
+    if (plotData && payload.action !== "compile" && payload.analysis !== "faultstudy") plot += (script ? "" : "\nSolve") + "\nExport Profile Phases=All " + PLOT + "profile.csv";
     let output: string;
-    try { output = module.ccall("DSS_Run", "string", ["string", "string", "number", "number"], ["/work/" + payload.entry, payload.action === "compile" ? "" : payload.commands, payload.analysis === "faultstudy" ? 1 : 0, payload.action === "compile" || script ? 1 : 0]); }
+    try { output = module.ccall("DSS_Run", "string", ["string", "string", "number", "number"], ["/work/" + payload.entry, (payload.action === "compile" ? "" : payload.commands) + plot, payload.analysis === "faultstudy" ? 1 : 0, payload.action === "compile" || script ? 1 : 0]); }
     catch { throw new Error("引擎執行指令時發生內部錯誤，這個指令可能不適用於網頁移植版或目前的模型。"); }
     const result = JSON.parse(output);
+    // 電路尚未求解時匯出會失敗；改用新的引擎實例、不帶繪圖資料重跑一次。
+    if (result.error && plotData && /must be solved/i.test(result.error)) return runModel(input, false);
     if (result.error) throw new Error(result.error);
     const reports: { name: string; content: string }[] = [];
     const originals = new Set(payload.files.map(file => ("/work/" + file.name).toLowerCase()));
@@ -72,13 +79,16 @@ export async function runModel(input: unknown): Promise<Result> {
       const stat = module.FS.stat(path);
       if (module.FS.isDir(stat.mode)) {
         for (const name of module.FS.readdir(path)) if (name !== "." && name !== "..") collect(path + "/" + name);
-      } else if (!originals.has(path.toLowerCase()) && /\.(csv|txt|dss|dsv)$/i.test(path) && stat.size + reportBytes <= 500000 && reports.length < 20) {
+      } else if (!originals.has(path.toLowerCase()) && !path.startsWith(PLOT) && /\.(csv|txt|dss|dsv)$/i.test(path) && stat.size + reportBytes <= 500000 && reports.length < 20) {
         reports.push({ name: path.slice(6), content: module.FS.readFile(path, { encoding: "utf8" }) });
         reportBytes += stat.size;
       }
     }
     collect("/work");
-    return { ...result, reports, elapsedMS: Math.round(performance.now() - started), isolated: true };
+    const rows = (name: string) => { try { return module.FS.readFile(PLOT + name, { encoding: "utf8" }).split(/\r?\n/).map(line => line.split(",").map(cell => cell.trim())); } catch { return []; } };
+    const coords = rows("coords.csv").filter(row => row.length >= 3 && row[0]).slice(0, 5000).map(([bus, x, y]) => ({ bus, x: Number(x), y: Number(y) })).filter(item => Number.isFinite(item.x) && Number.isFinite(item.y));
+    const profile = rows("profile.csv").slice(1).filter(row => row.length >= 6).slice(0, 20000).map(([name, d1, v1, d2, v2, phase]) => ({ name, d1: Number(d1), v1: Number(v1), d2: Number(d2), v2: Number(v2), phase: Number(phase) })).filter(item => [item.d1, item.v1, item.d2, item.v2].every(Number.isFinite));
+    return { ...result, reports, coords, profile, elapsedMS: Math.round(performance.now() - started), isolated: true };
   } finally {
     try {
       module.ccall("DSS_Clear", null, [], []);
