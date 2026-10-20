@@ -257,5 +257,9 @@ const dictionary: Record<string, string> = {
   "網頁移植版暫不支援 Distribute、Refine_BusLevels、Tear_Circuit 與 Export Sections。": "La versión web aún no admite Distribute, Refine_BusLevels, Tear_Circuit ni Export Sections.",
   "網頁移植版不支援平行 Actor、外部系統命令與外部連線。": "La versión web no admite actores paralelos, comandos externos del sistema ni conexiones externas.",
   "引擎執行指令時發生內部錯誤，這個指令可能不適用於網頁移植版或目前的模型。": "El motor tuvo un error interno. Es posible que este comando no funcione en la versión web o con este modelo.",
+  "確認": "Confirmar",
+  "確定": "Aceptar",
+  "取消": "Cancelar",
+  "{0} 傳來 {1} 個檔案，主腳本：{2}。開啟會取代此裝置的草稿，請先下載需要保留的模型。確定開啟？": "{0} envió {1} archivos (script principal: {2}). Abrirlos reemplaza el borrador de este dispositivo. Descargue primero lo que quiera conservar. ¿Abrirlos?",
 };
 export default dictionary;

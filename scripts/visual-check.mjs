@@ -33,6 +33,8 @@ for (const device of devices) {
   const errors = [];
   page.on("pageerror", error => errors.push(error.message));
   page.on("console", message => { if (message.type() === "error") errors.push(message.text()); });
+  // 桌面 App 內建瀏覽器不支援原生對話框，出現就算失敗。
+  context.on("dialog", dialog => { errors.push("出現原生對話框 " + dialog.type()); dialog.dismiss(); });
   const step = async (label, action) => {
     try { await action(); } catch (error) { failures.push(`${device.name}｜${label}｜${error.message.split("\n")[0]}`); }
   };
@@ -77,6 +79,29 @@ for (const device of devices) {
     await page.locator(".plot-panel", { hasText: "電壓剖面（Plot Profile）" }).waitFor();
   });
   await page.screenshot({ path: `${out}/${device.name}-5-plot.png`, fullPage: true });
+  await step("頁面內確認列", async () => {
+    await page.locator(".menu summary", { hasText: "檔案" }).click();
+    await page.locator(".menu[open] .menu-popup").getByRole("button", { name: "新增模型" }).click();
+    await page.locator(".confirm-bar").waitFor();
+    await reachable(".confirm-bar button:last-child");
+    await page.locator(".confirm-bar button", { hasText: "取消" }).click();
+    await page.locator(".confirm-bar").waitFor({ state: "detached" });
+  });
+  await step("其他網站帶入專案", async () => {
+    const opener = await context.newPage();
+    await opener.goto(base + "/api/engine");
+    const project = { entry: "Import.dss", mode: "faultstudy", commands: "", files: [{ name: "Import.dss", content: "Clear\nNew Circuit.Import BasekV=11.4 pu=1 Phases=3\nNew Load.L Bus1=SourceBus kW=100\nSet VoltageBases=[11.4]\nCalcVoltageBases\nSolve\n" }] };
+    const [popup] = await Promise.all([context.waitForEvent("page"), opener.evaluate(([target, project]) => {
+      const win = window.open(target, "_blank");
+      addEventListener("message", event => { if (event.source === win && event.data?.type === "opendss:ready") win.postMessage({ type: "opendss:project", project }, location.origin); });
+    }, [base + "/?import", project])]);
+    await popup.locator(".confirm-bar").waitFor({ timeout: 30000 });
+    await popup.screenshot({ path: `${out}/${device.name}-5b-import.png` });
+    await popup.locator(".confirm-bar button.primary").click();
+    const [entry, mode] = [await popup.locator("#entry").inputValue(), await popup.locator("#analysis").inputValue()];
+    if (entry !== "Import.dss" || mode !== "faultstudy") throw new Error(`帶入後主腳本 ${entry}、模式 ${mode}`);
+    await popup.close(); await opener.close();
+  });
   await step("切換英文介面", async () => {
     await page.locator(".menu summary", { hasText: "視窗" }).click();
     await page.getByRole("button", { name: /Language：English/ }).click();

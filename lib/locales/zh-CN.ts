@@ -257,5 +257,9 @@ const dictionary: Record<string, string> = {
   "網頁移植版暫不支援 Distribute、Refine_BusLevels、Tear_Circuit 與 Export Sections。": "网页移植版暂不支持 Distribute、Refine_BusLevels、Tear_Circuit 与 Export Sections。",
   "網頁移植版不支援平行 Actor、外部系統命令與外部連線。": "网页移植版不支持并行 Actor、外部系统命令与外部连接。",
   "引擎執行指令時發生內部錯誤，這個指令可能不適用於網頁移植版或目前的模型。": "引擎执行命令时发生内部错误，此命令可能不适用于网页移植版或当前模型。",
+  "確認": "确认",
+  "確定": "确定",
+  "取消": "取消",
+  "{0} 傳來 {1} 個檔案，主腳本：{2}。開啟會取代此裝置的草稿，請先下載需要保留的模型。確定開啟？": "{0} 传来 {1} 个文件，主脚本：{2}。打开会替换此设备上的草稿，请先下载需要保留的模型。确定打开？",
 };
 export default dictionary;
