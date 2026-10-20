@@ -261,5 +261,8 @@ const dictionary: Record<string, string> = {
   "確定": "OK",
   "取消": "Cancelar",
   "{0} 傳來 {1} 個檔案，主腳本：{2}。開啟會取代此裝置的草稿，請先下載需要保留的模型。確定開啟？": "{0} enviou {1} arquivos (script principal: {2}). Abri-los substitui o rascunho deste dispositivo. Baixe antes o que quiser manter. Abrir?",
+  "還原版面": "Restaurar layout",
+  "放大結果視窗": "Maximizar resultados",
+  "拖曳調整結果視窗高度": "Arraste para ajustar a altura do painel de resultados",
 };
 export default dictionary;

@@ -58,6 +58,25 @@ for (const device of devices) {
     await page.getByText(/計算完成/).first().waitFor({ timeout: 60000 });
   });
   await page.screenshot({ path: `${out}/${device.name}-2-solved.png`, fullPage: true });
+  await step("版面放大與還原", async () => {
+    await page.getByRole("button", { name: "放大編輯區" }).click();
+    if (await page.locator(".results-panel, .console-panel").count()) throw new Error("放大編輯區後指令或結果視窗還在");
+    await page.getByRole("button", { name: "還原版面" }).click();
+    await page.locator(".results-panel").waitFor(); await page.locator(".console-panel").waitFor();
+    await page.getByRole("button", { name: "放大結果視窗" }).click();
+    if (await page.locator(".editor-workspace").isVisible()) throw new Error("放大結果視窗後編輯區還在");
+    const [max, viewport] = [(await page.locator(".results-panel").boundingBox()).height, await page.evaluate(() => innerHeight)];
+    if (max < viewport * 0.4) throw new Error(`放大後結果視窗只有 ${Math.round(max)}px`);
+    await page.screenshot({ path: `${out}/${device.name}-2b-results-max.png` });
+    await page.getByRole("button", { name: "還原版面" }).click();
+    await page.locator(".editor-workspace").waitFor();
+    const splitter = await page.locator(".panel-splitter").boundingBox();
+    const before = (await page.locator(".results-panel").boundingBox()).height;
+    await page.mouse.move(splitter.x + splitter.width / 2, splitter.y + splitter.height / 2);
+    await page.mouse.down(); await page.mouse.move(splitter.x + splitter.width / 2, splitter.y - 60, { steps: 5 }); await page.mouse.up();
+    const after = (await page.locator(".results-panel").boundingBox()).height;
+    if (after < before + 40) throw new Error(`拖曳分隔線後高度 ${Math.round(before)} → ${Math.round(after)}`);
+  });
   await step("功能表產生 Show 報表", async () => {
     await page.locator(".menu summary", { hasText: "顯示" }).click();
     await reachable(".menu[open] .menu-popup button:last-child");
