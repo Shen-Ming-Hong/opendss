@@ -46,6 +46,8 @@ description: 維護 OpenDSS 雲端工作台（OpenDSS Cloud Workbench；Next/vin
 
 ## 修改流程
 
+**GitHub 是唯一來源**（Ray 指示）：雲端與 Mac 都一樣，開工前先 `git pull`（本機資料夾不是 git checkout 時，先改名備份再重新 clone），一律開分支、發 PR 修改，合併後由 Action 部署；不要從本機副本部署，也不要直接改 Mac 上未連到 GitHub 的舊資料夾。
+
 1. 先看 `git status --short --branch`，`git fetch origin`，確認工作目錄乾淨、沒有不屬於這次任務的變更；再從最新的 `origin/main` 開本任務專用分支，`npm ci`。一個任務一條分支，不要動其他任務的分支或未提交的變更，不用 reset、force-push 或強制 checkout 處理分岔。開工前讀 `references/lessons.md` 裡相關的條目。
 2. 改程式，風格沿用既有寫法（API 與 runtime 是緊湊單行風格）。介面有繁體中文與英文：程式裡照舊寫繁中文字並包 `t()`，同時在 `lib/i18n.ts` 的 `english` 字典與 `lib/locales/` 的每一份字典（简中、日、韓、西、葡）補上翻譯（以繁中原文為鍵，含伺服器錯誤訊息）；字典缺鍵時會顯示繁中原文。非英文介面的專業名詞用 `term()` 在旁邊補英文；OpenDSS 指令、元件名稱、報表內容不翻譯。之後要加語言就在 `languages` 加一項並給一份字典。
 3. 驗證（全部在開發環境）：

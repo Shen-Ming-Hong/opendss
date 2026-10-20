@@ -6,10 +6,10 @@ import { example, type ModelFile, type Result } from '../lib/model';
 import { detectLang, english, fullWidth, languages, legacyEncoding, translate, type Lang } from '../lib/i18n';
 import { CircuitPlot, CurvePlot, ProfilePlot } from './plots';
 
-type Tab = 'summary' | 'voltage' | 'current' | 'fault' | 'plot' | 'reports';
+type Tab = 'summary' | 'voltage' | 'current' | 'fault' | 'compare' | 'plot' | 'reports';
 type Log = { time: string; message: string; kind: string };
 type PlotView = 'voltage' | 'circuit' | 'profile' | 'curve';
-const tabs: [Tab,string][] = [['summary','電路摘要'],['voltage','匯流排電壓'],['current','元件電流'],['fault','故障電流'],['plot','繪圖'],['reports','文字報表']];
+const tabs: [Tab,string][] = [['summary','電路摘要'],['voltage','匯流排電壓'],['current','元件電流'],['fault','故障電流'],['compare','前後比較'],['plot','繪圖'],['reports','文字報表']];
 const initialFiles = example;
 const exampleFiles = () => example;
 // 瀏覽器語言決定介面語言；手動選的語言只在瀏覽器語言沒變時沿用。
@@ -23,7 +23,13 @@ function preferredLang():Lang {
 const retiredExamples = ['k8w4kf','1dilmmt'];
 const textHash = (text:string) => {let x=5381;for(const c of text)x=(x*33+c.codePointAt(0)!)>>>0;return x.toString(36);};
 const isRetiredExample = (files:ModelFile[]) => files.length===1&&files[0].name==='Demo_Feeder.dss'&&retiredExamples.includes(textHash(files[0].content));
-type Project={files:ModelFile[];entry:string;commands?:string;mode?:string};
+// run:'sequence' 表示帶進來後直接依序執行全部腳本。
+type Project={files:ModelFile[];entry:string;commands?:string;mode?:string;run?:string};
+type SequenceRun={name:string;result:Result};
+const isFaultRun=(result:Result)=>result.buses.some(bus=>bus.faultAmps.length>0);
+// 會自己建立電路的腳本才算一支獨立程式；被 Redirect 的子檔不單獨執行。
+const isCircuitScript=(file:ModelFile)=>/\.dss$/i.test(file.name)&&/^\s*new\s+circuit\./im.test(file.content);
+function toCSV(rows:(string|number)[][]){return '\uFEFF'+rows.map(row=>row.map(value=>typeof value==='number'?String(value):'"'+(/^[=+@-]/.test(value)?"'":'')+value.replaceAll('"','""')+'"').join(',')).join('\r\n');}
 const isProject=(project:Project|null|undefined):project is Project=>Array.isArray(project?.files)&&project.files.length>0&&project.files.length<=100&&project.files.every(file=>typeof file?.name==='string'&&typeof file.content==='string')&&project.files.some(file=>file.name===project.entry);
 // 其他網站可用 window.open 開「/?import」，收到 opendss:ready 後以 postMessage 傳 {type:'opendss:project',project}；只收這些來源。
 const importOrigins=/^(https:\/\/([a-z0-9-]+\.)*esperar-ai\.org|http:\/\/(localhost|127\.0\.0\.1)(:\d+)?)$/;
@@ -54,6 +60,9 @@ export default function Workbench() {
   const [mode,setMode]=useState('snapshot');
   const [result,setResult]=useState<Result|null>(null);
   const [stale,setStale]=useState(false);
+  // 依序執行的結果：revision 記住執行時的檔案與模式，之後改了模型就標成過期。
+  const [sequence,setSequence]=useState<{runs:SequenceRun[];revision:string}|null>(null);
+  const [pair,setPair]=useState<[string,string]>(['','']);
   const [busy,setBusy]=useState(false);
   const [connection,setConnection]=useState('正在檢查雲端引擎');
   const [connected,setConnected]=useState(false);
@@ -107,7 +116,8 @@ export default function Workbench() {
       if(!importOrigins.test(event.origin)||event.data?.type!=='opendss:project')return;
       const project=event.data.project as Project;
       if(!isProject(project)){log(t('專案檔格式錯誤。'),'error');return;}
-      ask(t('{0} 傳來 {1} 個檔案，主腳本：{2}。開啟會取代此裝置的草稿，請先下載需要保留的模型。確定開啟？',new URL(event.origin).host,project.files.length,project.entry),()=>{openProject(project);history.replaceState(null,'',location.pathname);});
+      const sequential=project.run==='sequence'&&project.files.filter(isCircuitScript).length>1;
+      ask(t(sequential?'{0} 傳來 {1} 個檔案，開啟後會依序執行全部腳本並列出前後電壓。開啟會取代此裝置的草稿，請先下載需要保留的模型。確定開啟？':'{0} 傳來 {1} 個檔案，主腳本：{2}。開啟會取代此裝置的草稿，請先下載需要保留的模型。確定開啟？',new URL(event.origin).host,project.files.length,project.entry),()=>{openProject(project);history.replaceState(null,'',location.pathname);if(sequential)runSequence(project.files,project.mode??'script');});
     }
     window.addEventListener('message',receive);
     window.opener.postMessage({type:'opendss:ready'},'*');
@@ -145,6 +155,34 @@ export default function Workbench() {
     }catch(error){setStale(true);log(error instanceof Error?error.message:t('執行失敗，請重試。'),'error');}
     finally{setBusy(false);}
   }
+  // 依序執行每支含 New Circuit 的腳本（例如故障電流、變動前、變動後），在「前後比較」列出各匯流排電壓與變動率。
+  async function runSequence(list=files,analysis=mode){
+    if(busy)return;
+    const scripts=list.filter(isCircuitScript);
+    if(scripts.length<2){log(t('依序執行需要至少兩支含 New Circuit 的腳本。'),'error');show('compare');return;}
+    setBusy(true);
+    const runs:SequenceRun[]=[];
+    try{
+      for(const [i,file] of scripts.entries()){
+        log(t('依序執行 {0}/{1}：{2}…',i+1,scripts.length,file.name));
+        const response=await fetch('/api/engine',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({files:list,entry:file.name,commands:'',analysis,action:'solve'}),signal:AbortSignal.timeout(60000)});
+        const data=await response.json() as Result & {error?:string};
+        if(!response.ok||data.error)throw Error(file.name+t('｜')+t(data.error??'計算失敗，請檢查模型。'));
+        runs.push({name:file.name,result:data});
+      }
+      const voltage=runs.filter(run=>!isFaultRun(run.result));
+      const before=voltage.find(run=>/before|變動前/i.test(run.name))?.name??voltage[0]?.name??'';
+      const after=voltage.find(run=>run.name!==before&&/after|變動後/i.test(run.name))?.name??voltage.find(run=>run.name!==before)?.name??'';
+      setSequence({runs,revision:JSON.stringify({files:list,mode:analysis})});setPair([before,after]);setConnected(true);setConnection('雲端引擎已連線');
+      log(t('依序執行完成，共 {0} 支腳本。',runs.length),'success');show('compare');
+    }catch(error){log(error instanceof Error?error.message:t('執行失敗，請重試。'),'error');}
+    finally{setBusy(false);}
+  }
+  function viewRun(run:SequenceRun){setResult(run.result);setEntry(run.name);setActive(run.name);setStale(sequenceStale);setElement('');show(isFaultRun(run.result)?'fault':'voltage');}
+  function exportCompare(){
+    if(!changes.length)return;
+    download((pair[1]||'compare').replace(/\.dss$/i,'')+'_compare.csv',toCSV([['Bus','Node','Before_pu','After_pu','Change_pct'],...changes.map(row=>[row.bus,row.node,row.before,row.after,row.pct])]),'text/csv;charset=utf-8');log(t('已匯出前後比較 CSV。'));
+  }
   async function openFiles(list:FileList|null){
     if(!list?.length)return;
     try{
@@ -167,7 +205,7 @@ export default function Workbench() {
     finally{if(uploader.current)uploader.current.value='';if(folder.current)folder.current.value='';}
   }
   function ask(message:string,apply:()=>void){setPending({message,apply});}
-  function openProject(project:Project){setFiles(project.files);setEntry(project.entry);setActive(project.entry);setCommands(project.commands??'');if(project.mode&&['snapshot','faultstudy','script'].includes(project.mode))setMode(project.mode);setResult(null);setStale(false);log(t('已開啟專案。'));}
+  function openProject(project:Project){setSequence(null);setFiles(project.files);setEntry(project.entry);setActive(project.entry);setCommands(project.commands??'');if(project.mode&&['snapshot','faultstudy','script'].includes(project.mode))setMode(project.mode);setResult(null);setStale(false);log(t('已開啟專案。'));}
   function maximize(next:'editor'|'results'){
     if(view==='normal')saved.current={console:showConsole,results:showResults};
     setLayout(next);
@@ -190,8 +228,7 @@ export default function Workbench() {
     if(!result||stale)return;
     const rows:(string|number)[][]=[['Bus','BasekV_LN','Node','Volts','pu','Fault_A']];
     for(const bus of result.buses)bus.nodes.forEach((node,i)=>rows.push([bus.name,bus.baseKV,node,bus.volts[i]??'',bus.pu[i]??'',bus.faultAmps[i]??'']));
-    const csv=rows.map(row=>row.map(value=>typeof value==='number'?String(value):'"'+(/^[=+@-]/.test(value)?"'":'')+value.replaceAll('"','""')+'"').join(',')).join('\r\n');
-    download(result.circuit+'_voltages.csv','\uFEFF'+csv,'text/csv;charset=utf-8');log(t('已匯出匯流排電壓 CSV。'));
+    download(result.circuit+'_voltages.csv',toCSV(rows),'text/csv;charset=utf-8');log(t('已匯出匯流排電壓 CSV。'));
   }
   function newModel(){ask(t('建立新模型會取代此裝置的草稿，確定繼續？'),()=>{const name='Untitled.dss';setFiles([{name,content:'Clear\nNew Circuit.Untitled BasekV=11.4 pu=1.0 Phases=3\n\nSet VoltageBases=[11.4]\nCalcVoltageBases\nSolve\n'}]);setEntry(name);setActive(name);setCommands('');setResult(null);log(t('已建立新模型。'));});}
   function restoreExample(){ask(t('載入範例會取代此裝置的草稿，確定繼續？'),()=>{setFiles(exampleFiles());setEntry(initialFiles[0].name);setActive(initialFiles[0].name);setCommands('');setResult(null);log(t('已載入 IEEE 13 節點測試饋線範例。'));});}
@@ -205,7 +242,7 @@ export default function Workbench() {
   const menus:[string,string,[string,()=>void,boolean?][]][]=[
     [t('檔案'),'File',[[t('新增模型'),newModel],[t('開啟檔案…'),()=>uploader.current?.click()],[t('開啟模型資料夾…'),()=>folder.current?.click()],[t('下載目前檔案'),()=>download(active,source)],[t('下載完整專案'),()=>download('Project.opendss.json',JSON.stringify({files,entry,commands},null,2),'application/json')],[t('儲存電路（Save Circuit）'),()=>runReport('Save Circuit Dir=saved'),busy]]],
     [t('編輯'),'Edit',[[t('選取全部'),()=>{editor.current?.focus();editor.current?.select();}],[t('放大字體'),()=>setFontSize(size=>Math.min(20,size+1))],[t('縮小字體'),()=>setFontSize(size=>Math.max(11,size-1))]]],
-    [t('執行'),'Do',[[t('編譯主檔（Compile）'),()=>run('compile'),busy],[t('求解（Solve）'),()=>run(),busy],[t('選取內容加入指令視窗'),selectLine]]],
+    [t('執行'),'Do',[[t('編譯主檔（Compile）'),()=>run('compile'),busy],[t('求解（Solve）'),()=>run(),busy],[t('依序執行全部腳本（前後比較）'),()=>runSequence(),busy],[t('選取內容加入指令視窗'),selectLine]]],
     [t('設定'),'Set',[[t('穩態潮流（Snapshot）'),()=>{setMode('snapshot');setStale(!!result);}],[t('故障分析（FaultStudy）'),()=>{setMode('faultstudy');setStale(!!result);}],[t('依腳本設定（不另外求解）'),()=>{setMode('script');setStale(!!result);}],...solveModes.map(([key,label])=>[t('加入：')+label,()=>setScriptMode(key)] as [string,()=>void])]],
     [t('建立'),'Make',[[t('新增空白模型'),newModel],[t('載入配電範例'),restoreExample]]],
     [t('匯出'),'Export',[[t('匯流排電壓 CSV'),exportCSV,!result||stale],[t('完整計算結果 JSON'),()=>result&&download(result.circuit+'_results.json',JSON.stringify(result,null,2),'application/json'),!result||stale],...exportOptions.map(([key,label])=>[paren(label,'Export '+key),()=>runReport('Export '+key),busy] as [string,()=>void,boolean])]],
@@ -216,6 +253,16 @@ export default function Workbench() {
     [t('視窗'),'Window',[[showConsole?t('隱藏主要指令視窗'):t('顯示主要指令視窗'),()=>setShowConsole(value=>!value)],[showResults?t('隱藏結果視窗'):t('顯示結果視窗'),()=>setShowResults(value=>!value)],...languages.map(item=>[(item.code===lang?'✓ ':'')+(lang==='en'?'Language: ':word+' Language'+(fullWidth(lang)?'：':': '))+item.name,()=>chooseLang(item.code)] as [string,()=>void])]],
     [t('說明'),'Help',[[t('使用說明與指令對照'),()=>help.current?.showModal()],[t('OpenDSS 官方文件 ↗'),()=>window.open('https://opendss.epri.com/','_blank','noopener,noreferrer')]]]
   ];
+  const voltageRuns=sequence?.runs.filter(run=>!isFaultRun(run.result))??[];
+  const sequenceStale=!!sequence&&sequence.revision!==JSON.stringify({files,mode});
+  const beforeRun=voltageRuns.find(run=>run.name===pair[0]),afterRun=voltageRuns.find(run=>run.name===pair[1]);
+  // 變動率 =（變動後 − 變動前）÷ 變動前 × 100%，逐一比對同名匯流排的相節點 1–3。
+  const changes=beforeRun&&afterRun&&beforeRun!==afterRun?beforeRun.result.buses.flatMap(bus=>{
+    const other=afterRun.result.buses.find(item=>item.name.toLowerCase()===bus.name.toLowerCase());
+    if(!other||!(bus.baseKV>0))return [];
+    return bus.nodes.flatMap((node,i)=>{const j=other.nodes.indexOf(node),before=bus.pu[i],after=other.pu[j];return node>=1&&node<=3&&j>=0&&before>0?[{bus:bus.name,node,before,after,pct:(after-before)/before*100}]:[];});
+  }):[];
+  const worst=changes.reduce<(typeof changes)[number]|undefined>((max,row)=>!max||Math.abs(row.pct)>Math.abs(max.pct)?row:max,undefined);
   const elements=result?.elements.filter(item=>elementType==='All'||item.name.toLowerCase().startsWith(elementType.toLowerCase()+'.'))??[];
   const buses=result?.buses.filter(bus=>bus.name.toLowerCase().includes(query.toLowerCase()))??[];
   const volts=result?.buses.flatMap(bus=>bus.pu.filter((_,i)=>bus.nodes[i]>=1&&bus.nodes[i]<=3&&bus.baseKV>0))??[];
@@ -234,7 +281,12 @@ export default function Workbench() {
     <div className={'editor-workspace '+(!showConsole?'console-hidden':'')}><section className="script-editor" aria-label={t('模型腳本編輯器')}><div className="panel-heading"><span><Code2 size={14}/>{t('模型腳本')}</span><div className="panel-actions"><button aria-label={t('縮小字體')} onClick={()=>setFontSize(size=>Math.max(11,size-1))}>A−</button><button aria-label={t('放大字體')} onClick={()=>setFontSize(size=>Math.min(20,size+1))}>A+</button><button title={view==='editor'?t('還原版面'):t('放大編輯區')} aria-label={view==='editor'?t('還原版面'):t('放大編輯區')} onClick={()=>view==='editor'?restoreLayout():maximize('editor')}>{view==='editor'?<Minimize2 size={13}/>:<Maximize2 size={13}/>}</button></div></div><div className="file-tabs" role="tablist" aria-label={t('已開啟檔案')}>{files.map(file=><button role="tab" aria-selected={active===file.name} className={active===file.name?'selected':''} key={file.name} onClick={()=>setActive(file.name)}><FileText size={13}/>{file.name}{entry===file.name&&<span className="entry-dot" title={t('主腳本')}/>}</button>)}</div><div className="code-editor" style={{fontSize}}><div className="line-numbers" ref={gutter} aria-hidden="true">{source.split('\n').map((_,i)=><div key={i}>{i+1}</div>)}</div><div className="code-surface"><pre ref={painted} aria-hidden="true">{source.split('\n').map((line,i)=><div key={i}>{paint(line)}{'\n'}</div>)}</pre><textarea ref={editor} aria-label={t('DSS 模型內容')} value={source} spellCheck={false} wrap="off" onChange={event=>{const content=event.target.value;setFiles(prev=>prev.map(file=>file.name===active?{...file,content}:file));setStale(!!result);}} onScroll={event=>{if(painted.current){painted.current.scrollTop=event.currentTarget.scrollTop;painted.current.scrollLeft=event.currentTarget.scrollLeft;}if(gutter.current)gutter.current.scrollTop=event.currentTarget.scrollTop;}} onSelect={()=>{const before=source.slice(0,editor.current?.selectionStart??0).split('\n');setCaret({line:before.length,column:before.at(-1)!.length+1});}}/></div></div><div className="editor-footer"><span>{t('DSS 腳本 · UTF-8')}</span><span>{t('第 {0} 行，第 {1} 欄',caret.line,caret.column)}</span></div></section>
     {showConsole&&<section className="console-panel" aria-label={t('主要指令視窗')}><div className="panel-heading"><span><Terminal size={14}/>{t('主要指令視窗')}</span><button title={t('隱藏指令視窗')} aria-label={t('隱藏指令視窗')} onClick={()=>setShowConsole(false)}><PanelRightClose size={14}/></button></div><div className="scratch-caption">Main Script Window <span>{t('額外指令')}</span></div><textarea className="scratch-editor" aria-label={t('額外 DSS 指令')} placeholder={t('額外指令可輸入於此，再按「執行指令」。例如：Edit Load.671 kW=1000')} value={commands} spellCheck={false} onChange={event=>{setCommands(event.target.value);setStale(!!result);}}/><div className="scratch-actions"><span><i/>{t('套用於目前主腳本')}</span><button disabled={busy} onClick={()=>run()}><Play size={11} fill="currentColor"/>{t('執行指令')}</button></div><div className="console-log-heading"><span>{t('執行紀錄')}</span><button onClick={()=>setLogs([])}>{t('清除')}</button></div><div className="console-log" role="log" aria-label={t('執行紀錄')}>{logs.length?logs.map((line,i)=><div className={'log-line '+line.kind} key={i}><time>{line.time}</time><span>{line.message}</span></div>):<div className="log-welcome"><Terminal size={22}/><span>{t('已準備就緒')}</span><p>{t('編譯模型後，執行紀錄會顯示於此。')}</p></div>}<div ref={logEnd}/></div><form className="command-input" onSubmit={event=>{event.preventDefault();if(!input.trim()||busy)return;const next=commands+'\n'+input+'\n';setCommands(next);setInput('');run('solve',next);}}><span>›</span><input aria-label={t('輸入單行 DSS 指令')} placeholder={t('輸入指令，例如 Summary')} value={input} onChange={event=>setInput(event.target.value)}/><button disabled={busy||!input.trim()} aria-label={t('送出指令')}><ArrowDownToLine size={14} className="send-arrow"/></button></form></section>}</div>
     {showResults&&view!=='results'&&<div className="panel-splitter" role="separator" aria-orientation="horizontal" aria-label={t('拖曳調整結果視窗高度')} onPointerDown={startResize}/>}
-    {showResults&&<section className="results-panel" style={view==='normal'&&resultsHeight?{height:resultsHeight}:undefined} aria-label={t('計算結果')}><div className="results-top"><div className="result-tabs" role="tablist" aria-label={t('結果分類')}>{tabs.map(([key,name])=><button role="tab" aria-selected={tab===key} key={key} className={tab===key?'selected':''} onClick={()=>setTab(key)}>{term(name)}</button>)}</div><div className="results-actions"><button title={view==='results'?t('還原版面'):t('放大結果視窗')} aria-label={view==='results'?t('還原版面'):t('放大結果視窗')} onClick={()=>view==='results'?restoreLayout():maximize('results')}>{view==='results'?<Minimize2 size={14}/>:<Maximize2 size={14}/>}</button><button className="collapse-results" aria-label={t('隱藏結果視窗')} onClick={()=>{setShowResults(false);if(view==='results')setLayout('normal');}}><X size={14}/></button></div></div>{result?<div className={'result-content '+(stale?'stale':'')}>
+    {showResults&&<section className="results-panel" style={view==='normal'&&resultsHeight?{height:resultsHeight}:undefined} aria-label={t('計算結果')}><div className="results-top"><div className="result-tabs" role="tablist" aria-label={t('結果分類')}>{tabs.map(([key,name])=><button role="tab" aria-selected={tab===key} key={key} className={tab===key?'selected':''} onClick={()=>setTab(key)}>{term(name)}</button>)}</div><div className="results-actions"><button title={view==='results'?t('還原版面'):t('放大結果視窗')} aria-label={view==='results'?t('還原版面'):t('放大結果視窗')} onClick={()=>view==='results'?restoreLayout():maximize('results')}>{view==='results'?<Minimize2 size={14}/>:<Maximize2 size={14}/>}</button><button className="collapse-results" aria-label={t('隱藏結果視窗')} onClick={()=>{setShowResults(false);if(view==='results')setLayout('normal');}}><X size={14}/></button></div></div>{tab==='compare'?<div className={'result-content compare-content '+(sequenceStale?'stale':'')}>{sequence?<>
+      <div className="sequence-runs">{sequence.runs.map((run,i)=><button key={run.name} title={t('檢視這支腳本的結果')} onClick={()=>viewRun(run)}><b>{i+1}</b><span>{run.name}</span><small>{isFaultRun(run.result)?t('故障電流'):t('電壓')} · {run.result.converged?t('已收斂'):t('尚未收斂')}</small></button>)}</div>
+      {sequenceStale&&<div className="sequence-stale"><Info size={14}/>{t('模型已變更，請重新依序執行。')}<button disabled={busy} onClick={()=>runSequence()}>{t('重新依序執行')}</button></div>}
+      <div className="table-tools compare-tools"><label>{t('變動前')}<select value={pair[0]} onChange={event=>setPair([event.target.value,pair[1]])}>{voltageRuns.map(run=><option key={run.name}>{run.name}</option>)}</select></label><label>{t('變動後')}<select value={pair[1]} onChange={event=>setPair([pair[0],event.target.value])}>{voltageRuns.map(run=><option key={run.name}>{run.name}</option>)}</select></label>{worst&&<strong className="compare-worst">{t('最大變動率 {0}%（{1}）',fmt(worst.pct,3),worst.bus+'.'+worst.node)}</strong>}<label><Search size={13}/><input aria-label={t('搜尋匯流排')} placeholder={t('搜尋匯流排…')} value={query} onChange={event=>setQuery(event.target.value)}/></label><button disabled={!changes.length} onClick={exportCompare}><ArrowDownToLine size={13}/>CSV</button></div>
+      {changes.length?<table className="compare-table"><thead><tr><th>{t('匯流排 Bus')}</th><th>{t('節點')}</th><th>{t('變動前 (p.u.)')}</th><th>{t('變動後 (p.u.)')}</th><th>{t('變動率 (%)')}</th></tr></thead><tbody>{changes.filter(row=>row.bus.toLowerCase().includes(query.toLowerCase())).map(row=><tr key={row.bus+'.'+row.node} className={row===worst?'worst':''}><td>{row.bus}</td><td>{row.node}</td><td>{fmt(row.before,5)}</td><td>{fmt(row.after,5)}</td><td>{fmt(row.pct,3)}</td></tr>)}</tbody></table>:<div className="inline-empty"><Info size={17}/>{t('請選兩支不同的電壓結果（非故障分析）來比較。')}</div>}
+    </>:<div className="inline-empty sequence-empty"><Info size={17}/><span>{t('依序執行專案中每支含 New Circuit 的腳本，列出各匯流排變動前後電壓與變動率。')}</span><button disabled={busy} onClick={()=>runSequence()}><Play size={13}/>{t('依序執行全部腳本')}</button></div>}</div>:result?<div className={'result-content '+(stale?'stale':'')}>
       {tab==='summary'&&<div className="summary-grid"><div><span>{term('作用中電路')}</span><strong className="circuit-name">{result.circuit}</strong><small>{result.mode} · {result.frequency} Hz</small></div><div><span>{term('電源供電')}</span><strong>{fmt(result.power[0])}<em>kW</em></strong><small>{fmt(result.power[1])} kvar</small></div><div><span>{term('總有功損失')}</span><strong>{fmt(result.losses[0])}<em>kW</em></strong><small>{result.power[0]?fmt(result.losses[0]/Math.abs(result.power[0])*100):'—'}{t('% 佔電源供電')}</small></div><div><span>{t('相電壓範圍（節點 1–3）')}</span><strong>{fmt(minPU,4)}<em>– {fmt(maxPU,4)} p.u.</em></strong><small>{t('{0} 匯流排 · {1} 次迭代',result.buses.length,result.iterations)}</small></div></div>}
       {(tab==='voltage'||tab==='fault')&&<><div className="table-tools"><span>{tab==='fault'?t('各匯流排三相短路電流'):t('相對中性點電壓 · BasekV 為相電壓')}</span><label><Search size={13}/><input aria-label={t('搜尋匯流排')} placeholder={t('搜尋匯流排…')} value={query} onChange={event=>setQuery(event.target.value)}/></label></div>{tab==='fault'&&!result.buses.some(bus=>bus.faultAmps.length)?<div className="inline-empty"><Info size={17}/>{t('請將求解模式設為「故障分析」，再按「求解」。')}</div>:<table><thead><tr><th>{t('匯流排 Bus')}</th><th>{t('BasekV（L-N）')}</th>{[1,2,3].map(node=><th key={node}>{t('節點 {0}',node)} {tab==='fault'?'(A)':'(p.u.)'}</th>)}</tr></thead><tbody>{buses.map(bus=><tr key={bus.name}><td>{bus.name}</td><td>{fmt(bus.baseKV)}</td>{[1,2,3].map(node=>{const value=(tab==='fault'?bus.faultAmps:bus.pu)[bus.nodes.indexOf(node)];return <td key={node} className={tab==='voltage'&&value!==undefined&&(value<.95||value>1.05)?'violation':''}>{fmt(value,tab==='fault'?1:5)}</td>;})}</tr>)}</tbody></table>}</>}
       {tab==='current'&&<><div className="table-tools"><span>{t('第一端電流與流入元件的功率 · 負值表示流出')}</span><button onClick={()=>setElement('')}>{t('顯示全部元件')}</button></div><table><thead><tr><th>{t('元件 Element')}</th><th>I₁ (A)</th><th>I₂ (A)</th><th>I₃ (A)</th><th>P (kW)</th><th>Q (kvar)</th><th>{t('損失 (kW)')}</th></tr></thead><tbody>{elements.filter(item=>!element||item.name===element).map(item=><tr key={item.name}><td>{item.name}</td>{[0,1,2].map(i=><td key={i}>{fmt(item.amps[i])}</td>)}<td>{fmt(item.kw)}</td><td>{fmt(item.kvar)}</td><td>{fmt(item.lossKW)}</td></tr>)}</tbody></table></>}
