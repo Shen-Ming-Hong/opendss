@@ -31,3 +31,15 @@
 - 規則：每個任務都從最新的 `origin/main` 開新分支；誤從舊分支開時，用 `git rebase --onto origin/main` 只搬本任務的提交。
 - 證據：PR #8 開出時誤帶舊提交，rebase 後只剩一筆。
 - 相關檔案：無
+
+## [介面] 不用 window.confirm／prompt／alert，改用頁面內確認列
+- 問題：Claude 桌面 App 的內建瀏覽器不會跳出原生對話框，按了「新增模型」「開啟專案」都沒反應。
+- 規則：要使用者確認時呼叫 `ask(訊息, 動作)`，畫面頂端出現 `.confirm-bar`；`visual-check.mjs` 遇到原生對話框就判失敗。
+- 證據：2026-10-20 改成確認列後，五種尺寸測試都能操作。
+- 相關檔案：`app/workbench.tsx`、`scripts/visual-check.mjs`
+
+## [匯入] 其他網站用 `/?import` 加 postMessage 帶專案進來
+- 問題：工作台和其他網站不同網域，不能共用儲存空間；把模型放網址會留在瀏覽紀錄且受長度限制。
+- 規則：對方 `window.open('/?import')`，工作台回 `opendss:ready`，對方再傳 `{type:'opendss:project',project}`。只收 `importOrigins` 列的來源（esperar-ai.org 子網域與本機），格式檢查與開啟 .opendss.json 共用 `isProject`。
+- 證據：與 singhong-tools 預覽 DSS 串接測試通過。
+- 相關檔案：`app/workbench.tsx`

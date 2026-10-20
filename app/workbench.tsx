@@ -23,6 +23,10 @@ function preferredLang():Lang {
 const retiredExamples = ['k8w4kf','1dilmmt'];
 const textHash = (text:string) => {let x=5381;for(const c of text)x=(x*33+c.codePointAt(0)!)>>>0;return x.toString(36);};
 const isRetiredExample = (files:ModelFile[]) => files.length===1&&files[0].name==='Demo_Feeder.dss'&&retiredExamples.includes(textHash(files[0].content));
+type Project={files:ModelFile[];entry:string;commands?:string;mode?:string};
+const isProject=(project:Project|null|undefined):project is Project=>Array.isArray(project?.files)&&project.files.length>0&&project.files.length<=100&&project.files.every(file=>typeof file?.name==='string'&&typeof file.content==='string')&&project.files.some(file=>file.name===project.entry);
+// 其他網站可用 window.open 開「/?import」，收到 opendss:ready 後以 postMessage 傳 {type:'opendss:project',project}；只收這些來源。
+const importOrigins=/^(https:\/\/([a-z0-9-]+\.)*esperar-ai\.org|http:\/\/(localhost|127\.0\.0\.1)(:\d+)?)$/;
 function download(name:string,content:string,mime='text/plain;charset=utf-8') {
   const url=URL.createObjectURL(new Blob([content],{type:mime}));
   const anchor=document.createElement('a'); anchor.href=url; anchor.download=name; anchor.click();
@@ -64,6 +68,8 @@ export default function Workbench() {
   const [fontSize,setFontSize]=useState(13);
   const [caret,setCaret]=useState({line:1,column:1});
   const [restored,setRestored]=useState(false);
+  // 頁面內確認列：桌面 App 內建瀏覽器不支援 window.confirm。
+  const [pending,setPending]=useState<{message:string;apply:()=>void}|null>(null);
   const uploader=useRef<HTMLInputElement>(null), folder=useRef<HTMLInputElement>(null);
   const editor=useRef<HTMLTextAreaElement>(null), painted=useRef<HTMLPreElement>(null), gutter=useRef<HTMLDivElement>(null);
   const help=useRef<HTMLDialogElement>(null), logEnd=useRef<HTMLDivElement>(null);
@@ -86,6 +92,18 @@ export default function Workbench() {
     fetch('/api/engine',{signal:controller.signal}).then(async response=>{const data=await response.json() as {error?:string};setConnected(response.ok);setConnection(response.ok?'雲端引擎已連線':data.error??'引擎暫時無法連線');}).catch(()=>{if(!controller.signal.aborted)setConnection('引擎暫時無法連線');});
     return ()=>{controller.abort();window.removeEventListener('languagechange',followBrowser);};
   },[]);
+  useEffect(()=>{
+    if(!restored||!new URLSearchParams(location.search).has('import')||!window.opener)return;
+    function receive(event:MessageEvent){
+      if(!importOrigins.test(event.origin)||event.data?.type!=='opendss:project')return;
+      const project=event.data.project as Project;
+      if(!isProject(project)){log(t('專案檔格式錯誤。'),'error');return;}
+      ask(t('{0} 傳來 {1} 個檔案，主腳本：{2}。開啟會取代此裝置的草稿，請先下載需要保留的模型。確定開啟？',new URL(event.origin).host,project.files.length,project.entry),()=>{openProject(project);history.replaceState(null,'',location.pathname);});
+    }
+    window.addEventListener('message',receive);
+    window.opener.postMessage({type:'opendss:ready'},'*');
+    return ()=>window.removeEventListener('message',receive);
+  },[restored]);
   useEffect(()=>{
     if(!restored)return;
     try{localStorage.setItem('opendss-workspace-v1',JSON.stringify({files,entry,commands}));}catch{log(t('瀏覽器儲存空間不足，請下載模型保留修改。'),'error');}
@@ -121,10 +139,9 @@ export default function Workbench() {
     if(!list?.length)return;
     try{
       if(list.length===1&&list[0].name.endsWith('.opendss.json')){
-        const project=JSON.parse(await list[0].text());
-        if(!Array.isArray(project.files)||!project.files.length||!project.files.every((file:ModelFile)=>typeof file.name==='string'&&typeof file.content==='string')||!project.files.some((file:ModelFile)=>file.name===project.entry))throw Error(t('專案檔格式錯誤。'));
-        if(!window.confirm(t('開啟專案會取代此裝置的草稿。請先下載需要保留的模型。確定開啟？')))return;
-        setFiles(project.files);setEntry(project.entry);setActive(project.entry);setCommands(project.commands??'');setResult(null);log(t('已開啟專案。'));return;
+        const project=JSON.parse(await list[0].text()) as Project;
+        if(!isProject(project))throw Error(t('專案檔格式錯誤。'));
+        ask(t('開啟專案會取代此裝置的草稿。請先下載需要保留的模型。確定開啟？'),()=>openProject(project));return;
       }
       const selected=Array.from(list).filter(file=>/\.(dss|csv|txt|dat)$/i.test(file.name));
       if(selected.length>100||selected.reduce((sum,file)=>sum+file.size,0)>2*1024*1024)throw Error(t('上限為 100 個檔案、合計 2 MB。'));
@@ -135,11 +152,12 @@ export default function Workbench() {
       }));
       const main=imported.find(file=>/master[^/]*\.dss$/i.test(file.name))??imported.find(file=>/\.dss$/i.test(file.name));
       if(!main)throw Error(t('至少需要一個 .dss 模型檔案。'));
-      if(!window.confirm(t('開啟新模型會取代此裝置的草稿。請先下載需要保留的檔案。確定開啟？')))return;
-      setFiles(imported);setEntry(main.name);setActive(main.name);setCommands('');setResult(null);setStale(false);log(t('已開啟 {0} 個檔案，主檔：{1}',imported.length,main.name));
+      ask(t('開啟新模型會取代此裝置的草稿。請先下載需要保留的檔案。確定開啟？'),()=>{setFiles(imported);setEntry(main.name);setActive(main.name);setCommands('');setResult(null);setStale(false);log(t('已開啟 {0} 個檔案，主檔：{1}',imported.length,main.name));});
     }catch(error){log(error instanceof Error?error.message:t('讀取檔案失敗。'),'error');}
     finally{if(uploader.current)uploader.current.value='';if(folder.current)folder.current.value='';}
   }
+  function ask(message:string,apply:()=>void){setPending({message,apply});}
+  function openProject(project:Project){setFiles(project.files);setEntry(project.entry);setActive(project.entry);setCommands(project.commands??'');if(project.mode&&['snapshot','faultstudy','script'].includes(project.mode))setMode(project.mode);setResult(null);setStale(false);log(t('已開啟專案。'));}
   function show(next:Tab){setTab(next);setShowResults(true);}
   function plot(view:PlotView){setPlotView(view);show('plot');}
   function exportCSV(){
@@ -149,8 +167,8 @@ export default function Workbench() {
     const csv=rows.map(row=>row.map(value=>typeof value==='number'?String(value):'"'+(/^[=+@-]/.test(value)?"'":'')+value.replaceAll('"','""')+'"').join(',')).join('\r\n');
     download(result.circuit+'_voltages.csv','\uFEFF'+csv,'text/csv;charset=utf-8');log(t('已匯出匯流排電壓 CSV。'));
   }
-  function newModel(){if(!window.confirm(t('建立新模型會取代此裝置的草稿，確定繼續？')))return;const name='Untitled.dss';setFiles([{name,content:'Clear\nNew Circuit.Untitled BasekV=11.4 pu=1.0 Phases=3\n\nSet VoltageBases=[11.4]\nCalcVoltageBases\nSolve\n'}]);setEntry(name);setActive(name);setCommands('');setResult(null);log(t('已建立新模型。'));}
-  function restoreExample(){if(!window.confirm(t('載入範例會取代此裝置的草稿，確定繼續？')))return;setFiles(exampleFiles());setEntry(initialFiles[0].name);setActive(initialFiles[0].name);setCommands('');setResult(null);log(t('已載入 IEEE 13 節點測試饋線範例。'));}
+  function newModel(){ask(t('建立新模型會取代此裝置的草稿，確定繼續？'),()=>{const name='Untitled.dss';setFiles([{name,content:'Clear\nNew Circuit.Untitled BasekV=11.4 pu=1.0 Phases=3\n\nSet VoltageBases=[11.4]\nCalcVoltageBases\nSolve\n'}]);setEntry(name);setActive(name);setCommands('');setResult(null);log(t('已建立新模型。'));});}
+  function restoreExample(){ask(t('載入範例會取代此裝置的草稿，確定繼續？'),()=>{setFiles(exampleFiles());setEntry(initialFiles[0].name);setActive(initialFiles[0].name);setCommands('');setResult(null);log(t('已載入 IEEE 13 節點測試饋線範例。'));});}
   function selectLine(){const area=editor.current;if(!area)return;const before=source.slice(0,area.selectionStart);const selected=source.slice(area.selectionStart,area.selectionEnd)||source.split('\n')[before.split('\n').length-1];setCommands(prev=>prev+'\n'+selected+'\n');setShowConsole(true);log(t('已將選取內容加入主要指令視窗，請確認後執行。'));}
   function queue(lines:string){setCommands(prev=>prev.trimEnd()+'\n'+lines+'\n');setShowConsole(true);log(t('已將 {0} 加入主要指令視窗，請按「執行指令」。',lines.split('\n')[0]));}
   function setScriptMode(name:string){setMode('script');setStale(!!result);queue('Set Mode='+name+'\nSolve');}
@@ -181,6 +199,7 @@ export default function Workbench() {
     <input ref={uploader} type="file" multiple accept=".dss,.csv,.txt,.dat,.json" hidden onChange={event=>openFiles(event.target.files)}/>
     <input ref={folder} type="file" multiple hidden {...{webkitdirectory:''}} onChange={event=>openFiles(event.target.files)}/>
     <header className="title-bar"><div className="app-brand"><span className="app-mark"><Zap size={18} fill="currentColor"/></span><h1>OpenDSS</h1><span className="brand-divider"/><span className="edition">{t('雲端工作台')}</span><span className="version-badge">WEB PREVIEW</span></div><div className="title-meta"><span className="no-login">{t('免登入使用')}</span><label className="language-picker"><Globe size={14}/><span className="language-label">{lang==='en'?'Language':word+' Language'}</span><select aria-label="Language / 語言" value={lang} onChange={event=>chooseLang(event.target.value as Lang)}>{languages.map(item=><option key={item.code} value={item.code}>{item.name}</option>)}</select></label><button aria-label={t('使用說明')} onClick={()=>help.current?.showModal()}><CircleHelp size={17}/></button></div></header>
+    {pending&&<div className="confirm-bar" role="alertdialog" aria-label={t('確認')}><p>{pending.message}</p><div><button onClick={()=>download('Project.opendss.json',JSON.stringify({files,entry,commands},null,2),'application/json')}>{t('下載完整專案')}</button><button className="primary" onClick={()=>{pending.apply();setPending(null);}}>{t('確定')}</button><button onClick={()=>setPending(null)}>{t('取消')}</button></div></div>}
     <nav className="menu-bar" aria-label={t('主要功能表')}>{menus.map(([name,en,items])=><details className="menu" key={name}><summary title={en} onClick={event=>{const current=event.currentTarget.parentElement;document.querySelectorAll('.menu[open]').forEach(node=>{if(node!==current)node.removeAttribute('open');});}}>{name}</summary><div className="menu-popup">{items.map(([label,action,disabled])=><button key={label} disabled={disabled} onClick={event=>{event.currentTarget.closest('details')?.removeAttribute('open');action();}}>{label}</button>)}</div></details>)}<span className="menu-end">{t('熟悉的指令，熟悉的工作流程')}</span></nav>
     <div className="toolbar" role="toolbar" aria-label={t('常用工具')}><div className="tool-group"><button title={t('新增模型')} aria-label={t('新增模型')} onClick={newModel}><FilePlus2/></button><button title={t('開啟檔案')} aria-label={t('開啟檔案')} onClick={()=>uploader.current?.click()}><FolderOpen/></button><button title={t('下載目前檔案（⌘/Ctrl+S）')} aria-label={t('下載目前檔案')} onClick={()=>download(active,source)}><Save/></button></div><div className="tool-group"><button className="tool-label" disabled={busy} title={t('Compile：載入並執行主檔')} aria-label={t('編譯')} onClick={()=>run('compile')}><Braces/><span>{t('編譯')}</span></button><button className="solve-button" disabled={busy} onClick={()=>run()}>{busy?<Loader2 className="spin"/>:<Play fill="currentColor"/>}<span>{busy?t('執行中'):t('求解')}</span></button></div><div className="tool-group"><button className="tool-label" aria-label={t('摘要')} onClick={()=>show('summary')}><FileText/><span>{t('摘要')}</span></button><button className="tool-label" aria-label={t('繪圖')} onClick={()=>show('plot')}><Activity/><span>{t('繪圖')}</span></button><button className="tool-label" aria-label={t('匯出')} disabled={!result||stale} onClick={exportCSV}><ArrowDownToLine/><span>{t('匯出')}</span></button></div><div className="toolbar-spacer"/><button className="tool-label console-toggle" title={t('切換主要指令視窗')} aria-label={t('切換主要指令視窗')} onClick={()=>setShowConsole(value=>!value)}><Terminal/><span>{t('指令視窗')}</span></button><span className={'cloud-status '+(connected?'online':'')} title={t(connection)}><Cloud size={15}/><span>{connected?t('雲端已連線'):t(connection)}</span><i/></span></div>
     <div className="selector-row"><div className="selector"><Network size={15}/><label htmlFor="element-type">{term('元件類型')}</label><select id="element-type" value={elementType} onChange={event=>{setElementType(event.target.value);setElement('');}}><option value="All">{t('全部元件')}</option>{[['Vsource',t('電壓源')],['Transformer',t('變壓器')],['Line',t('線路')],['Load',t('負載')],['PVSystem',t('太陽光電')],['Generator',t('發電機')]].map(([value,label])=><option key={value} value={value}>{label} · {value}</option>)}</select><select aria-label={t('選取電路元件')} value={element} onChange={event=>setElement(event.target.value)}><option value="">{result?t('選取元件…'):t('請先編譯模型')}</option>{elements.map(item=><option key={item.name}>{item.name}</option>)}</select><button disabled={!result} title={t('顯示元件資訊')} aria-label={t('顯示元件資訊')} onClick={()=>show('current')}><Info size={16}/></button></div><div className="selector analysis"><Settings2 size={15}/><label htmlFor="analysis">{term('求解模式')}</label><select id="analysis" value={mode} onChange={event=>{setMode(event.target.value);setStale(!!result);}}><option value="snapshot">{t('穩態潮流 · Snapshot')}</option><option value="faultstudy">{t('故障分析 · FaultStudy')}</option><option value="script">{t('依腳本設定 · Set Mode')}</option></select><span className="frequency">{result?.frequency??60} Hz</span></div></div>
