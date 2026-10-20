@@ -40,6 +40,6 @@
 
 ## [匯入] 其他網站用 `/?import` 加 postMessage 帶專案進來
 - 問題：工作台和其他網站不同網域，不能共用儲存空間；把模型放網址會留在瀏覽紀錄且受長度限制。
-- 規則：對方 `window.open('/?import')`，工作台回 `opendss:ready`，對方再傳 `{type:'opendss:project',project}`。只收 `importOrigins` 列的來源（esperar-ai.org 子網域與本機），格式檢查與開啟 .opendss.json 共用 `isProject`。
+- 規則：對方 `window.open('/?import')`，工作台回 `opendss:ready`，對方再傳 `{type:'opendss:project',project}`。只收 `importOrigins` 列的來源（esperar-ai.org 子網域與本機），格式檢查與開啟 .opendss.json 共用 `isProject`。專案帶 `run:'sequence'` 時，確認後直接依序執行每支含 New Circuit 的腳本並切到「前後比較」。
 - 證據：與 singhong-tools 預覽 DSS 串接測試通過。
 - 相關檔案：`app/workbench.tsx`

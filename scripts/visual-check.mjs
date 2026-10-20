@@ -39,11 +39,11 @@ for (const device of devices) {
     try { await action(); } catch (error) { failures.push(`${device.name}｜${label}｜${error.message.split("\n")[0]}`); }
   };
   // 元素要能捲到畫面內，且左右沒有被切掉。
-  const reachable = async selector => {
-    const target = page.locator(selector).first();
+  const reachable = async (selector, targetPage = page) => {
+    const target = targetPage.locator(selector).first();
     await target.scrollIntoViewIfNeeded();
     const box = await target.boundingBox();
-    const [width, height] = await page.evaluate(() => [window.innerWidth, window.innerHeight]);
+    const [width, height] = await targetPage.evaluate(() => [window.innerWidth, window.innerHeight]);
     if (!box || box.height < 1 || box.x < -1 || box.x + Math.min(box.width, width) > width + 1 || box.y < -1 || box.y + Math.min(box.height, 24) > height + 1) throw new Error(`${selector} 被切掉或捲不到`);
   };
   await step("開啟首頁", async () => {
@@ -119,6 +119,37 @@ for (const device of devices) {
     await popup.locator(".confirm-bar button.primary").click();
     const [entry, mode] = [await popup.locator("#entry").inputValue(), await popup.locator("#analysis").inputValue()];
     if (entry !== "Import.dss" || mode !== "faultstudy") throw new Error(`帶入後主腳本 ${entry}、模式 ${mode}`);
+    await popup.close(); await opener.close();
+  });
+  await step("依序執行三支並列出前後電壓", async () => {
+    // 虛構的小饋線：故障電流、變動前、變動後三支共用底稿，變動後在 B2 加發電（負載 kW 為負）。
+    const common = "Clear\nNew Circuit.Demo basekv=11.4 pu=1 phases=3 bus1=sourcebus MVAsc3=200 MVAsc1=180\nNew Line.L1 Bus1=sourcebus Bus2=B1 R1=0.3 X1=0.6 Length=2 units=km\nNew Line.L2 Bus1=B1 Bus2=B2 R1=0.3 X1=0.6 Length=1.5 units=km\nNew Load.LD Bus1=B2 kV=11.4 kW=800 kvar=200\n";
+    const end = "Set Voltagebases=[11.4]\ncalcv\nSolve\n";
+    const files = [{ name: "Demo_Fault.dss", content: common + end + "set mode=Faultstudy\nSolve\n" }, { name: "Demo_Before.dss", content: common + end }, { name: "Demo_After.dss", content: common + "New Load.DG Bus1=B2 kV=11.4 kW=-500 kvar=0\n" + end }];
+    const project = { entry: "Demo_Before.dss", mode: "script", commands: "", run: "sequence", files };
+    const opener = await context.newPage();
+    await opener.goto(base + "/api/engine");
+    const [popup] = await Promise.all([context.waitForEvent("page"), opener.evaluate(([target, project]) => {
+      const win = window.open(target, "_blank");
+      addEventListener("message", event => { if (event.source === win && event.data?.type === "opendss:ready") win.postMessage({ type: "opendss:project", project }, location.origin); });
+    }, [base + "/?import", project])]);
+    popup.on("pageerror", error => errors.push(error.message));
+    await popup.locator(".confirm-bar", { hasText: "依序執行" }).waitFor({ timeout: 30000 });
+    await popup.locator(".confirm-bar button.primary").click();
+    await popup.locator(".compare-table tbody tr").first().waitFor({ timeout: 90000 });
+    if (await popup.locator(".sequence-runs button").count() !== 3) throw new Error("沒有列出三支腳本");
+    const pair = [await popup.locator(".compare-tools select").nth(0).inputValue(), await popup.locator(".compare-tools select").nth(1).inputValue()];
+    if (pair.join() !== "Demo_Before.dss,Demo_After.dss") throw new Error("前後預設是 " + pair.join("、"));
+    const worst = await popup.locator(".compare-table tr.worst td").allTextContents();
+    if (worst[0]?.toUpperCase() !== "B2" || !(Number(worst[4].replace(/[^\d.-]/g, "")) > 0)) throw new Error("最大變動率那列是 " + worst.join(" "));
+    await popup.screenshot({ path: `${out}/${device.name}-5c-sequence.png`, fullPage: true });
+    await popup.locator(".results-panel").screenshot({ path: `${out}/${device.name}-5d-compare.png` });
+    await reachable(".compare-table", popup);
+    await popup.locator(".sequence-runs button", { hasText: "Demo_Fault.dss" }).click();
+    await popup.locator(".result-tabs button.selected", { hasText: "故障電流" }).waitFor();
+    if (await popup.getByText("請將求解模式設為").count()) throw new Error("故障電流程式的結果沒有故障電流");
+    const overflow = await popup.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
+    if (overflow > 1) throw new Error(`前後比較頁比視窗寬 ${overflow}px`);
     await popup.close(); await opener.close();
   });
   await step("切換英文介面", async () => {
