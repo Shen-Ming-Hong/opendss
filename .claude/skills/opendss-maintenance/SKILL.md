@@ -30,6 +30,7 @@ description: 維護 OpenDSS 雲端工作台（OpenDSS Cloud Workbench；Next/vin
 
 ## 不可違反的限制
 
+- **GitHub 是唯一原始碼來源**：不論在雲端 session、Ray 的 Mac 或其他工具，開工前都先 `git fetch` 並從最新的 `origin/main` 開分支；本機資料夾如果不是這個 repo 的 git checkout（沒有 origin，或 origin 不是 GitHub），先重新 clone 再改。Mac 上舊的 `~/Documents/opendss/site` 是 Sites 時期的副本，不可拿來改或發布。修改一律走分支加 PR，合併到 `main` 由 Action 部署。
 - CI 只做部署（Ray 明確要求，不要浪費 Actions 時間）。凡是能在雲端 session 本機跑的驗證，包括型別檢查、引擎與 API 檢查、五種尺寸互動測試、build、lint，一律在本機跑完再推；不要在 workflow 加任何測試或檢查步驟，也不要另開 CI workflow。
 - Worker 內 WASM 必須靜態匯入 `WebAssembly.Module` 配合 `instantiateWasm`，不可用 fetch 或動態編譯。WASM 記憶體初始 32 MiB、最大 96 MiB，整個 Worker 上限 128 MiB。
 - 每次計算都要新引擎實例（原生引擎 Clear 後會殘留狀態），不要改成共用實例。

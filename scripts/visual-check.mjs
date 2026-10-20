@@ -109,7 +109,14 @@ for (const device of devices) {
   await step("其他網站帶入專案", async () => {
     const opener = await context.newPage();
     await opener.goto(base + "/api/engine");
-    const project = { entry: "Import.dss", mode: "faultstudy", commands: "", files: [{ name: "Import.dss", content: "Clear\nNew Circuit.Import BasekV=11.4 pu=1 Phases=3\nNew Load.L Bus1=SourceBus kW=100\nSet VoltageBases=[11.4]\nCalcVoltageBases\nSolve\n" }] };
+    // 虛構的三支獨立電路：故障分析、併聯前、併聯後，帶 batch 讓工作台依序執行並比較電壓。
+    const feeder = name => `Clear\nNew Circuit.${name} BasekV=11.4 pu=1 Phases=3 MVAsc3=200 MVAsc1=200\nNew Line.L1 Bus1=SourceBus Bus2=B2 Length=2 Units=km R1=0.3 X1=0.4 R0=0.6 X0=1.2\nNew Load.L Bus1=B2 kW=800 kvar=200\n`;
+    const ending = "Set VoltageBases=[11.4]\nCalcVoltageBases\nSolve\n";
+    const project = { entry: "Import.dss", mode: "script", commands: "", batch: ["Import.dss", "Before.dss", "After.dss"], files: [
+      { name: "Import.dss", content: feeder("ImportFault") + ending + "Set Mode=FaultStudy\nSolve\n" },
+      { name: "Before.dss", content: feeder("Before") + ending },
+      { name: "After.dss", content: feeder("After") + "New Generator.PV Bus1=B2 kW=500 PF=1\n" + ending },
+    ] };
     const [popup] = await Promise.all([context.waitForEvent("page"), opener.evaluate(([target, project]) => {
       const win = window.open(target, "_blank");
       addEventListener("message", event => { if (event.source === win && event.data?.type === "opendss:ready") win.postMessage({ type: "opendss:project", project }, location.origin); });
@@ -118,7 +125,14 @@ for (const device of devices) {
     await popup.screenshot({ path: `${out}/${device.name}-5b-import.png` });
     await popup.locator(".confirm-bar button.primary").click();
     const [entry, mode] = [await popup.locator("#entry").inputValue(), await popup.locator("#analysis").inputValue()];
-    if (entry !== "Import.dss" || mode !== "faultstudy") throw new Error(`帶入後主腳本 ${entry}、模式 ${mode}`);
+    if (entry !== "Import.dss" || mode !== "script") throw new Error(`帶入後主腳本 ${entry}、模式 ${mode}`);
+    // 依序執行三支，比較頁要有故障電流表與最大電壓變動率。
+    await popup.locator(".batch-button").click();
+    await popup.locator(".batch-peak").waitFor({ timeout: 90000 });
+    if (!(await popup.locator(".batch-peak").textContent()).includes("b2")) throw new Error("最大電壓變動率不在 B2：" + await popup.locator(".batch-peak").textContent());
+    if (!(await popup.locator(".batch-compare h3", { hasText: "Import.dss" }).count())) throw new Error("比較頁沒有故障電流表");
+    await popup.locator(".results-actions button").first().click();
+    await popup.screenshot({ path: `${out}/${device.name}-5c-batch.png`, fullPage: true });
     await popup.close(); await opener.close();
   });
   await step("切換英文介面", async () => {

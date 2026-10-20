@@ -4,7 +4,7 @@ import { readFileSync } from "node:fs";
 import { dictionaries, english, languages } from "../lib/i18n";
 
 const keys = new Set<string>();
-for (const file of ["app/workbench.tsx", "app/plots.tsx"]) for (const match of readFileSync(file, "utf8").matchAll(/\b(?:t|term)\('((?:[^'\\]|\\.)*)'/g)) if (/[　-鿿＀-￯]/.test(match[1])) keys.add(match[1]);
+for (const file of ["app/workbench.tsx", "app/plots.tsx", "app/batch.tsx"]) for (const match of readFileSync(file, "utf8").matchAll(/\b(?:t|term)\('((?:[^'\\]|\\.)*)'/g)) if (/[　-鿿＀-￯]/.test(match[1])) keys.add(match[1]);
 for (const key of Object.keys(english)) keys.add(key);
 const problems: string[] = [];
 for (const { code } of languages.filter(item => item.code !== "zh-TW")) for (const key of keys) {

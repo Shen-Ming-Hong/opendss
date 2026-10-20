@@ -43,3 +43,9 @@
 - 規則：對方 `window.open('/?import')`，工作台回 `opendss:ready`，對方再傳 `{type:'opendss:project',project}`。只收 `importOrigins` 列的來源（esperar-ai.org 子網域與本機），格式檢查與開啟 .opendss.json 共用 `isProject`。
 - 證據：與 singhong-tools 預覽 DSS 串接測試通過。
 - 相關檔案：`app/workbench.tsx`
+
+## [本機 dev] vinext dev 的 /api/engine 一直回「Network connection lost」時，改用 build 後的 wrangler dev
+- 問題：重開幾次 dev 伺服器後，首頁 200 但 `/api/engine` 每次都 500（workerd 回 Network connection lost），清 `node_modules/.vite`、`.vinext` 也沒用。
+- 規則：`npm run build` 後用 `npx wrangler dev -c dist/server/wrangler.json --port 5180 --ip 127.0.0.1`，跑的是正式打包產物，visual-check 加 `--base-url http://127.0.0.1:5180`。每次改程式要重新 build 再重開。
+- 證據：2026-10-20 依序執行功能的驗證改用這個方式後全部通過。
+- 相關檔案：`dist/server/wrangler.json`
