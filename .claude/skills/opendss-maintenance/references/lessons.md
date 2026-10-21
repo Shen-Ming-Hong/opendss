@@ -22,8 +22,8 @@
 
 ## [本機 dev] dev 伺服器回「Network connection lost」時，整組重開
 - 問題：workerd 子程序掛掉後，vite 對每個請求都回 500。用 `pkill -f` 比對字串時會連自己的 shell 一起砍掉。
-- 規則：用 `ps` 找出 run-framework 與 workerd 的 PID 逐一 kill，再用 `nohup npm run dev -- --host 127.0.0.1 &` 重開。
-- 證據：2026-10-19 兩次重開都靠這個方法恢復。
+- 規則：用 `ps` 找出 run-framework 與 workerd 的 PID 逐一 kill，再用 `nohup npm run dev -- --host 127.0.0.1 &` 重開。重開後 `/api/engine` 仍回 500 時，改用 `npm run build` 後 `nohup npm start -- --port 8787 &`，check-engine.py 與 visual-check.mjs 都加 `--base-url http://127.0.0.1:8787`。
+- 證據：2026-10-19 兩次重開都靠這個方法恢復；2026-10-21 main 與分支的 dev 都持續 500，build 後的 `npm start` 正常且兩項檢查 PASS。
 - 相關檔案：`scripts/run-framework.mjs`
 
 ## [分支] 合併用 squash，舊分支不能直接接著用

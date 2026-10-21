@@ -2,6 +2,8 @@
 
 [繁體中文](README.md) | [简体中文](README.zh-CN.md) | [English](README.en.md) | [日本語](README.ja.md) | [한국어](README.ko.md) | [Español](README.es.md) | [Português (Brasil)](README.pt-BR.md)
 
+Run EPRI OpenDSS online in your browser: power flow, fault and harmonics studies with no install or sign-in.
+
 正式站：https://opendss.esperar-ai.org
 
 保留 OpenDSS 原生功能表與腳本工作流程的網頁介面，使用 EPRI OpenDSS（官方 C++ 版 VersionC）的 WASM 移植，在 Cloudflare Workers 執行計算。網站公開提供使用，無須登入。

@@ -128,7 +128,7 @@ export default function Workbench() {
     if(!restored)return;
     try{localStorage.setItem('opendss-workspace-v1',JSON.stringify({files,entry,commands}));}catch{log(t('瀏覽器儲存空間不足，請下載模型保留修改。'),'error');}
   },[files,entry,commands,restored]);
-  useEffect(()=>{document.documentElement.lang=lang;document.title='OpenDSS · '+t('雲端工作台');},[lang]);
+  useEffect(()=>{document.documentElement.lang=lang;document.title='OpenDSS '+t('雲端工作台')+(lang==='en'?'':' · OpenDSS Cloud Workbench');},[lang]);
   useEffect(()=>{const panel=logEnd.current?.parentElement;if(panel)panel.scrollTop=panel.scrollHeight;},[logs]);
   useEffect(()=>{
     function key(event:KeyboardEvent){
